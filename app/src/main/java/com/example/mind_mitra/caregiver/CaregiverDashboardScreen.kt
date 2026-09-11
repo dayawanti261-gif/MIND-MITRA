@@ -39,7 +39,6 @@ private val DarkText = Color(0xFF183331)
 private val SecondaryText = Color(0xFF61716F)
 private val LightCard = Color.White
 
-
 @Composable
 fun CaregiverDashboardScreen(
     caregiverName: String
@@ -48,10 +47,6 @@ fun CaregiverDashboardScreen(
     var currentTab by remember { mutableStateOf("home") }
     var currentSection by remember { mutableStateOf("dashboard") }
 
-    /*
-     * If a separate management screen is opened,
-     * show that screen first.
-     */
     if (currentSection != "dashboard") {
 
         when (currentSection) {
@@ -166,87 +161,12 @@ fun CaregiverDashboardScreen(
 
                     RoutineItem(
                         time = "4:00 PM",
-                        activity = "Walk / Activity"
+                        activity = "Walk"
                     )
 
                     RoutineItem(
                         time = "8:00 PM",
                         activity = "Dinner"
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    FrontendActionButton(
-                        text = "Add Routine Activity"
-                    )
-                }
-            }
-
-            "tasks" -> {
-                CaregiverSectionScreen(
-                    title = "Tasks & Reminders",
-                    subtitle = "Create and manage tasks for the elderly user's daily routine.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
-                ) {
-
-                    TaskCard(
-                        title = "Morning Routine",
-                        description = "Complete morning activities."
-                    )
-
-                    TaskCard(
-                        title = "Cognitive Activity",
-                        description = "Complete today's recommended cognitive activity."
-                    )
-
-                    TaskCard(
-                        title = "Family Connection",
-                        description = "Spend some time connecting with family."
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    FrontendActionButton(
-                        text = "Create New Task"
-                    )
-                }
-            }
-
-            "preferences" -> {
-                CaregiverSectionScreen(
-                    title = "Preferences",
-                    subtitle = "Manage activities and content the elderly user enjoys.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
-                ) {
-
-                    PreferenceCard(
-                        title = "Favourite Music",
-                        description = "Manage preferred music and songs."
-                    )
-
-                    PreferenceCard(
-                        title = "Favourite Activities",
-                        description = "Manage enjoyable cognitive and daily activities."
-                    )
-
-                    PreferenceCard(
-                        title = "Favourite Memories",
-                        description = "Highlight meaningful memories."
-                    )
-
-                    PreferenceCard(
-                        title = "Language",
-                        description = "English, Hindi, Assamese, Bengali and other supported languages."
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    FrontendActionButton(
-                        text = "Edit Preferences"
                     )
                 }
             }
@@ -296,72 +216,198 @@ fun CaregiverDashboardScreen(
         return
     }
 
-
-    /*
-     * MAIN CAREGIVER AREA
-     */
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WarmWhite)
     ) {
 
-        /*
-         * CONTENT AREA
-         */
-
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
+                .padding(16.dp)
         ) {
 
-            when (currentTab) {
+            Text(
+                text = "Caregiver Dashboard",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
 
-                "home" -> {
-                    CaregiverHomeTab(
-                        caregiverName = caregiverName,
-                        onSectionSelected = {
-                            currentSection = it
-                        },
-                        onMonitorSelected = {
-                            currentTab = "monitor"
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Welcome, $caregiverName",
+                fontSize = 14.sp,
+                color = SecondaryText
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = SoftMint
+                )
+            ) {
+
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+
+                    Text(
+                        text = "Elderly User",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkText
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Manage the user's profile, memories, routine and preferences.",
+                        fontSize = 13.sp,
+                        color = SecondaryText
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    FrontendActionButton(
+                        text = "View Profile",
+                        onClick = {
+                            currentSection = "profile"
                         }
                     )
                 }
+            }
 
-                "manage" -> {
-                    CaregiverManageTab(
-                        onSectionSelected = {
-                            currentSection = it
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Quick Actions",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+
+                QuickActionButton(
+                    text = "Elderly Profile",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        currentSection = "profile"
+                    }
+                )
+
+                QuickActionButton(
+                    text = "Family",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        currentSection = "family"
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+
+                QuickActionButton(
+                    text = "Memories",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        currentSection = "memories"
+                    }
+                )
+
+                QuickActionButton(
+                    text = "Daily Routine",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        currentSection = "routine"
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Weekly Overview",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = LightCard
+                )
+            ) {
+
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+
+                    Text(
+                        text = "Activity Summary",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkText
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    SummaryRow(
+                        title = "Games",
+                        value = "View",
+                        onClick = {
+                            currentSection = "progress"
                         }
                     )
-                }
 
-                "monitor" -> {
-                    CaregiverMonitorTab(
-                        onSectionSelected = {
-                            currentSection = it
+                    SummaryRow(
+                        title = "Activities",
+                        value = "View",
+                        onClick = {
+                            currentSection = "progress"
                         }
                     )
-                }
 
-                "more" -> {
-                    CaregiverMoreTab(
-                        onSectionSelected = {
-                            currentSection = it
+                    SummaryRow(
+                        title = "Routine",
+                        value = "View",
+                        onClick = {
+                            currentSection = "progress"
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    FrontendActionButton(
+                        text = "View Progress",
+                        onClick = {
+                            currentSection = "progress"
                         }
                     )
                 }
             }
         }
-
-
-        /*
-         * FIXED BOTTOM NAVIGATION
-         */
 
         NavigationBar(
             containerColor = Color.White
@@ -371,13 +417,9 @@ fun CaregiverDashboardScreen(
                 selected = currentTab == "home",
                 onClick = {
                     currentTab = "home"
+                    currentSection = "dashboard"
                 },
-                icon = {
-                    Text(
-                        text = "⌂",
-                        fontSize = 22.sp
-                    )
-                },
+                icon = {},
                 label = {
                     Text("Home")
                 }
@@ -387,13 +429,9 @@ fun CaregiverDashboardScreen(
                 selected = currentTab == "manage",
                 onClick = {
                     currentTab = "manage"
+                    currentSection = "profile"
                 },
-                icon = {
-                    Text(
-                        text = "●",
-                        fontSize = 20.sp
-                    )
-                },
+                icon = {},
                 label = {
                     Text("Manage")
                 }
@@ -403,13 +441,9 @@ fun CaregiverDashboardScreen(
                 selected = currentTab == "monitor",
                 onClick = {
                     currentTab = "monitor"
+                    currentSection = "progress"
                 },
-                icon = {
-                    Text(
-                        text = "▥",
-                        fontSize = 21.sp
-                    )
-                },
+                icon = {},
                 label = {
                     Text("Monitor")
                 }
@@ -420,12 +454,7 @@ fun CaregiverDashboardScreen(
                 onClick = {
                     currentTab = "more"
                 },
-                icon = {
-                    Text(
-                        text = "•••",
-                        fontSize = 18.sp
-                    )
-                },
+                icon = {},
                 label = {
                     Text("More")
                 }
@@ -433,500 +462,6 @@ fun CaregiverDashboardScreen(
         }
     }
 }
-
-
-/* ===================================================
-   HOME TAB
-=================================================== */
-
-@Composable
-private fun CaregiverHomeTab(
-    caregiverName: String,
-    onSectionSelected: (String) -> Unit,
-    onMonitorSelected: () -> Unit
-) {
-
-    Text(
-        text = "Caregiver Dashboard",
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "Welcome, $caregiverName",
-        fontSize = 16.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(22.dp))
-
-
-    /*
-     * ELDERLY USER CARD
-     */
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "Elderly User",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Manage the user's profile, memories, routine and preferences.",
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Button(
-                onClick = {
-                    onSectionSelected("profile")
-                },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepTeal
-                )
-            ) {
-
-                Text(
-                    text = "View Profile",
-                    color = Color.White
-                )
-            }
-        }
-    }
-
-
-    Spacer(modifier = Modifier.height(26.dp))
-
-
-    /*
-     * QUICK ACTIONS
-     */
-
-    Text(
-        text = "Quick Actions",
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(14.dp))
-
-    DashboardButtonRow(
-        firstTitle = "Elderly Profile",
-        firstAction = {
-            onSectionSelected("profile")
-        },
-        secondTitle = "Family",
-        secondAction = {
-            onSectionSelected("family")
-        }
-    )
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    DashboardButtonRow(
-        firstTitle = "Memories",
-        firstAction = {
-            onSectionSelected("memories")
-        },
-        secondTitle = "Daily Routine",
-        secondAction = {
-            onSectionSelected("routine")
-        }
-    )
-
-
-    Spacer(modifier = Modifier.height(26.dp))
-
-
-    /*
-     * WEEKLY OVERVIEW
-     */
-
-    Text(
-        text = "Weekly Overview",
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(14.dp))
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "Activity Summary",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            MonitorRow(
-                title = "Games",
-                value = "View"
-            )
-
-            MonitorRow(
-                title = "Activities",
-                value = "View"
-            )
-
-            MonitorRow(
-                title = "Routine",
-                value = "View"
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Button(
-                onClick = onMonitorSelected,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepTeal
-                )
-            ) {
-
-                Text(
-                    text = "View Progress",
-                    color = Color.White
-                )
-            }
-        }
-    }
-
-
-    Spacer(modifier = Modifier.height(20.dp))
-}
-
-
-/* ===================================================
-   MANAGE TAB
-=================================================== */
-
-@Composable
-private fun CaregiverManageTab(
-    onSectionSelected: (String) -> Unit
-) {
-
-    Text(
-        text = "Manage",
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "Manage the elderly user's information and daily experience.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-
-    DashboardButtonRow(
-        firstTitle = "Elderly Profile",
-        firstAction = {
-            onSectionSelected("profile")
-        },
-        secondTitle = "Family",
-        secondAction = {
-            onSectionSelected("family")
-        }
-    )
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    DashboardButtonRow(
-        firstTitle = "Memories",
-        firstAction = {
-            onSectionSelected("memories")
-        },
-        secondTitle = "Daily Routine",
-        secondAction = {
-            onSectionSelected("routine")
-        }
-    )
-
-
-    Spacer(modifier = Modifier.height(26.dp))
-
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "Personalized Care",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Keep the elderly user's profile, family connections, memories and routine personalized.",
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-        }
-    }
-}
-
-
-/* ===================================================
-   MONITOR TAB
-=================================================== */
-
-@Composable
-private fun CaregiverMonitorTab(
-    onSectionSelected: (String) -> Unit
-) {
-
-    Text(
-        text = "Monitor",
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "View activity and progress information.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-
-    ProgressCard(
-        title = "Game Performance",
-        value = "This week's cognitive game activity"
-    )
-
-    ProgressCard(
-        title = "Activities Completed",
-        value = "Overview of completed activities"
-    )
-
-    ProgressCard(
-        title = "Routine Completion",
-        value = "Overview of daily routine"
-    )
-
-    ProgressCard(
-        title = "Progress Trends",
-        value = "Weekly engagement and activity trends"
-    )
-
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-
-    Button(
-        onClick = {
-            onSectionSelected("progress")
-        },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = DeepTeal
-        )
-    ) {
-
-        Text(
-            text = "Open Progress Details",
-            color = Color.White
-        )
-    }
-}
-
-
-/* ===================================================
-   MORE TAB
-=================================================== */
-
-@Composable
-private fun CaregiverMoreTab(
-    onSectionSelected: (String) -> Unit
-) {
-
-    Text(
-        text = "More",
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Bold,
-        color = DarkText
-    )
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "Additional caregiver controls.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-
-    DashboardButtonRow(
-        firstTitle = "Tasks",
-        firstAction = {
-            onSectionSelected("tasks")
-        },
-        secondTitle = "Preferences",
-        secondAction = {
-            onSectionSelected("preferences")
-        }
-    )
-
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "MIND MITRA",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "A personalized AI-powered cognitive-care companion for elderly users.",
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-        }
-    }
-}
-
-
-/* ===================================================
-   TWO BUTTON ROW
-=================================================== */
-
-@Composable
-private fun DashboardButtonRow(
-    firstTitle: String,
-    firstAction: () -> Unit,
-    secondTitle: String,
-    secondAction: () -> Unit
-) {
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-
-        CaregiverActionButton(
-            title = firstTitle,
-            modifier = Modifier.weight(1f),
-            onClick = firstAction
-        )
-
-        CaregiverActionButton(
-            title = secondTitle,
-            modifier = Modifier.weight(1f),
-            onClick = secondAction
-        )
-    }
-}
-
-
-/* ===================================================
-   ACTION BUTTON
-=================================================== */
-
-@Composable
-private fun CaregiverActionButton(
-    title: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(90.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Text(
-            text = title,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DeepTeal
-        )
-    }
-}
-
-
-/* ===================================================
-   SECTION SCREEN
-=================================================== */
 
 @Composable
 private fun CaregiverSectionScreen(
@@ -940,58 +475,42 @@ private fun CaregiverSectionScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(WarmWhite)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
     ) {
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp)
+        Button(
+            onClick = onBack,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SoftMint,
+                contentColor = DeepTeal
+            )
         ) {
-
-            Button(
-                onClick = onBack,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SoftMint
-                )
-            ) {
-
-                Text(
-                    text = "← Back",
-                    color = DeepTeal,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = title,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = subtitle,
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            content()
+            Text("← Back")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = title,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = subtitle,
+            fontSize = 14.sp,
+            color = SecondaryText
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        content()
     }
 }
-
-
-/* ===================================================
-   INFORMATION CARD
-=================================================== */
 
 @Composable
 private fun SectionInfoCard(
@@ -1003,19 +522,19 @@ private fun SectionInfoCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = LightCard
         )
     ) {
 
         Column(
-            modifier = Modifier.padding(18.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
 
             Text(
                 text = title,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
             )
@@ -1024,17 +543,12 @@ private fun SectionInfoCard(
 
             Text(
                 text = description,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 color = SecondaryText
             )
         }
     }
 }
-
-
-/* ===================================================
-   MEMORY CARD
-=================================================== */
 
 @Composable
 private fun MemoryCategoryCard(
@@ -1044,110 +558,22 @@ private fun MemoryCategoryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
+            .padding(bottom = 10.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = LightCard
         )
     ) {
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DarkText
-            )
-
-            Text(
-                text = "Open →",
-                fontSize = 14.sp,
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-
-/* ===================================================
-   PREFERENCE CARD
-=================================================== */
-
-@Composable
-private fun PreferenceCard(
-    title: String,
-    description: String
-) {
-
-    SectionInfoCard(
-        title = title,
-        description = description
-    )
-}
-
-
-/* ===================================================
-   TASK CARD
-=================================================== */
-
-@Composable
-private fun TaskCard(
-    title: String,
-    description: String
-) {
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = LightCard
+        Text(
+            text = title,
+            modifier = Modifier.padding(16.dp),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = DarkText
         )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
-
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = description,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Frontend task",
-                fontSize = 13.sp,
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
     }
 }
-
-
-/* ===================================================
-   ROUTINE ITEM
-=================================================== */
 
 @Composable
 private fun RoutineItem(
@@ -1158,8 +584,8 @@ private fun RoutineItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
+            .padding(bottom = 10.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = LightCard
         )
@@ -1168,12 +594,12 @@ private fun RoutineItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp)
+                .padding(16.dp)
         ) {
 
             Text(
                 text = time,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = DeepTeal
             )
@@ -1182,18 +608,12 @@ private fun RoutineItem(
 
             Text(
                 text = activity,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
                 color = DarkText
             )
         }
     }
 }
-
-
-/* ===================================================
-   PROGRESS CARD
-=================================================== */
 
 @Composable
 private fun ProgressCard(
@@ -1204,44 +624,87 @@ private fun ProgressCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
+            .padding(bottom = 10.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = LightCard
         )
     ) {
 
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
 
             Text(
                 text = title,
-                fontSize = 18.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(5.dp))
 
             Text(
                 text = value,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 color = SecondaryText
             )
         }
     }
 }
 
+@Composable
+private fun FrontendActionButton(
+    text: String,
+    onClick: () -> Unit = {}
+) {
 
-/* ===================================================
-   MONITOR ROW
-=================================================== */
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = DeepTeal,
+            contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+
+        Text(
+            text = text,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
 
 @Composable
-private fun MonitorRow(
+private fun QuickActionButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(60.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SoftMint,
+            contentColor = DeepTeal
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+
+        Text(
+            text = text,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun SummaryRow(
     title: String,
-    value: String
+    value: String,
+    onClick: () -> Unit
 ) {
 
     Row(
@@ -1253,45 +716,21 @@ private fun MonitorRow(
 
         Text(
             text = title,
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             color = SecondaryText
         )
 
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = DeepTeal,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
+        Button(
+            onClick = onClick,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = DeepTeal
+            )
+        ) {
 
-
-/* ===================================================
-   FRONTEND ACTION BUTTON
-=================================================== */
-
-@Composable
-private fun FrontendActionButton(
-    text: String
-) {
-
-    Button(
-        onClick = {
-            // Backend functionality will be connected later.
-        },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = DeepTeal
-        )
-    ) {
-
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+            Text(
+                text = value,
+                fontSize = 12.sp
+            )
+        }
     }
 }
