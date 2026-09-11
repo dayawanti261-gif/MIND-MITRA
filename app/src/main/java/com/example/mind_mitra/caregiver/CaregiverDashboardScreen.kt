@@ -261,23 +261,33 @@ fun CaregiverDashboardScreen(
                 ) {
 
                     ProgressCard(
-                        title = "Game Performance",
-                        value = "This week's activity"
+                        title = "Memory Game",
+                        value = "82%"
+                    )
+
+                    ProgressCard(
+                        title = "Pattern Game",
+                        value = "74%"
+                    )
+
+                    ProgressCard(
+                        title = "Recall Game",
+                        value = "79%"
                     )
 
                     ProgressCard(
                         title = "Activities Completed",
-                        value = "Daily activity overview"
+                        value = "12 activities"
                     )
 
                     ProgressCard(
                         title = "Routine Completion",
-                        value = "Daily routine overview"
+                        value = "85%"
                     )
 
                     ProgressCard(
-                        title = "Progress Trends",
-                        value = "Weekly progress trends"
+                        title = "Engagement Trend",
+                        value = "Improving"
                     )
                 }
             }
