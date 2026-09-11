@@ -20,8 +20,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import com.example.mind_mitra.data.AuthRepository
+import com.example.mind_mitra.data.FirebaseRepository
+
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
 private val SoftMint = Color(0xFFE8F5F2)
@@ -39,246 +44,827 @@ private val DarkText = Color(0xFF183331)
 private val SecondaryText = Color(0xFF61716F)
 private val LightCard = Color.White
 
-
 @Composable
 fun CaregiverDashboardScreen(
     caregiverName: String
 ) {
-
     var currentTab by remember { mutableStateOf("home") }
     var currentSection by remember { mutableStateOf("dashboard") }
 
-    /*
-     * If a separate management screen is opened,
-     * show that screen first.
-     */
     if (currentSection != "dashboard") {
 
         when (currentSection) {
 
+            // =====================================================
+            // PROFILE
+            // =====================================================
+
             "profile" -> {
+                var patientName by remember { mutableStateOf("Loading...") }
+                var patientEmail by remember { mutableStateOf("") }
+                var patientLanguage by remember { mutableStateOf("") }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                LaunchedEffect(Unit) {
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return@LaunchedEffect
+                    }
+
+                    FirebaseRepository.getConnectedPatientProfile(
+                        caregiverId = caregiverId,
+                        onSuccess = { profile ->
+                            if (profile == null) {
+                                patientName = "No patient connected"
+                                message = "Please connect an elderly user first."
+                            } else {
+                                patientName =
+                                    profile["name"] as? String ?: "Unknown"
+                                patientEmail =
+                                    profile["email"] as? String ?: ""
+                                patientLanguage =
+                                    profile["language"] as? String ?: ""
+                            }
+                        },
+                        onError = {
+                            message = it.message ?: "Unable to load profile."
+                        }
+                    )
+                }
+
                 CaregiverSectionScreen(
                     title = "Elderly Profile",
-                    subtitle = "Manage the elderly user's personal information and preferences.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "View the connected elderly user's information.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
+                    SectionInfoCard("Name", patientName)
                     SectionInfoCard(
-                        title = "Personal Information",
-                        description = "Name, age and basic profile information."
+                        "Email",
+                        patientEmail.ifEmpty { "Not available" }
+                    )
+                    SectionInfoCard(
+                        "Language",
+                        patientLanguage.ifEmpty { "Not available" }
                     )
 
-                    SectionInfoCard(
-                        title = "Family Information",
-                        description = "Manage important family relationships."
-                    )
-
-                    SectionInfoCard(
-                        title = "Personal Preferences",
-                        description = "Favourite activities, music and interests."
-                    )
-
-                    FrontendActionButton(
-                        text = "Edit Profile"
-                    )
+                    if (message.isNotEmpty()) {
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
+                    }
                 }
             }
+
+            // =====================================================
+            // FAMILY
+            // =====================================================
 
             "family" -> {
+
+                var familyList by remember {
+                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                }
+
+                var showAddForm by remember { mutableStateOf(false) }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                fun loadFamily() {
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return
+                    }
+
+                    FirebaseRepository.getConnectedPatientFamily(
+                        caregiverId = caregiverId,
+                        onSuccess = {
+                            familyList = it
+                        },
+                        onError = {
+                            message = it.message ?: "Unable to load family."
+                        }
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    loadFamily()
+                }
+
                 CaregiverSectionScreen(
                     title = "Family",
-                    subtitle = "Manage family members who are connected with the elderly user.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "Manage family members connected with the elderly user.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
-                    SectionInfoCard(
-                        title = "Family Members",
-                        description = "View and manage important family members."
-                    )
 
-                    FrontendActionButton(
-                        text = "Add Family Member"
-                    )
+                    if (familyList.isEmpty()) {
+                        Text(
+                            text = "No family members added yet.",
+                            color = SecondaryText
+                        )
+                    } else {
+                        familyList.forEach {
+                            SectionInfoCard(
+                                title = it["name"] as? String ?: "Unknown",
+                                description =
+                                    it["relation"] as? String
+                                        ?: "Family member"
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    SectionInfoCard(
-                        title = "Family Connection",
-                        description = "Family can send greetings, photos, voice messages and short videos."
-                    )
+                    Button(
+                        onClick = {
+                            showAddForm = !showAddForm
+                            message = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DeepTeal
+                        )
+                    ) {
+                        Text(
+                            if (showAddForm)
+                                "Cancel"
+                            else
+                                "Add Family Member"
+                        )
+                    }
+
+                    if (showAddForm) {
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AddFamilyForm(
+                            onSaved = {
+                                showAddForm = false
+                                message = "Family member added successfully."
+                                loadFamily()
+                            },
+                            onError = {
+                                message = it
+                            }
+                        )
+                    }
+
+                    if (message.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
+                    }
                 }
             }
+
+            // =====================================================
+            // MEMORIES
+            // =====================================================
 
             "memories" -> {
+
+                var memoryList by remember {
+                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                }
+
+                var showAddForm by remember { mutableStateOf(false) }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                fun loadMemories() {
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return
+                    }
+
+                    FirebaseRepository.getConnectedPatientMemories(
+                        caregiverId = caregiverId,
+                        onSuccess = {
+                            memoryList = it
+                        },
+                        onError = {
+                            message = it.message ?: "Unable to load memories."
+                        }
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    loadMemories()
+                }
+
                 CaregiverSectionScreen(
                     title = "Memory Vault",
-                    subtitle = "Organize meaningful memories for the elderly user.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "Manage meaningful memories for the elderly user.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
 
-                    MemoryCategoryCard("Family Photos")
-                    MemoryCategoryCard("Childhood Memories")
-                    MemoryCategoryCard("Important Events")
-                    MemoryCategoryCard("Places")
-                    MemoryCategoryCard("People")
-                    MemoryCategoryCard("Voice Messages")
+                    if (memoryList.isEmpty()) {
+                        Text(
+                            text = "No memories added yet.",
+                            color = SecondaryText
+                        )
+                    } else {
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        memoryList.forEach {
 
-                    FrontendActionButton(
-                        text = "Add Memory"
-                    )
+                            SectionInfoCard(
+                                title =
+                                    it["title"] as? String
+                                        ?: "Untitled Memory",
+                                description =
+                                    it["description"] as? String
+                                        ?: "No description"
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            showAddForm = !showAddForm
+                            message = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DeepTeal
+                        )
+                    ) {
+                        Text(
+                            if (showAddForm)
+                                "Cancel"
+                            else
+                                "Add Memory"
+                        )
+                    }
+
+                    if (showAddForm) {
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AddMemoryForm(
+                            onSaved = {
+                                showAddForm = false
+                                message = "Memory added successfully."
+                                loadMemories()
+                            },
+                            onError = {
+                                message = it
+                            }
+                        )
+                    }
+
+                    if (message.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
+                    }
                 }
             }
+
+            // =====================================================
+            // ROUTINE
+            // =====================================================
 
             "routine" -> {
+
+                var routineList by remember {
+                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                }
+
+                var showAddForm by remember { mutableStateOf(false) }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                fun loadRoutine() {
+
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return
+                    }
+
+                    FirebaseRepository.getConnectedPatientSchedule(
+                        caregiverId = caregiverId,
+                        onSuccess = {
+                            routineList = it
+                        },
+                        onError = {
+                            message = it.message ?: "Unable to load routine."
+                        }
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    loadRoutine()
+                }
+
                 CaregiverSectionScreen(
                     title = "Daily Routine",
-                    subtitle = "Manage the user's daily schedule and reminders.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "Manage the user's daily schedule and activities.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
 
-                    RoutineItem(
-                        time = "7:00 AM",
-                        activity = "Wake Up"
-                    )
+                    if (routineList.isEmpty()) {
 
-                    RoutineItem(
-                        time = "8:00 AM",
-                        activity = "Breakfast"
-                    )
+                        Text(
+                            text = "No routine activities added yet.",
+                            color = SecondaryText
+                        )
 
-                    RoutineItem(
-                        time = "10:00 AM",
-                        activity = "Cognitive Activity"
-                    )
+                    } else {
 
-                    RoutineItem(
-                        time = "1:00 PM",
-                        activity = "Lunch"
-                    )
+                        routineList.forEach {
 
-                    RoutineItem(
-                        time = "4:00 PM",
-                        activity = "Walk / Activity"
-                    )
+                            val title =
+                                it["title"] as? String ?: "Activity"
 
-                    RoutineItem(
-                        time = "8:00 PM",
-                        activity = "Dinner"
-                    )
+                            val time =
+                                it["time"] as? String ?: "Time not set"
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                            val completed =
+                                it["completed"] as? Boolean ?: false
 
-                    FrontendActionButton(
-                        text = "Add Routine Activity"
-                    )
+                            RoutineItem(
+                                time = time,
+                                activity =
+                                    "$title ${
+                                        if (completed) "✓"
+                                        else ""
+                                    }"
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            showAddForm = !showAddForm
+                            message = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DeepTeal
+                        )
+                    ) {
+                        Text(
+                            if (showAddForm)
+                                "Cancel"
+                            else
+                                "Add Routine Activity"
+                        )
+                    }
+
+                    if (showAddForm) {
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AddRoutineForm(
+                            onSaved = {
+                                showAddForm = false
+                                message = "Routine activity added successfully."
+                                loadRoutine()
+                            },
+                            onError = {
+                                message = it
+                            }
+                        )
+                    }
+
+                    if (message.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
+                    }
                 }
             }
+
+            // =====================================================
+            // TASKS / REMINDERS
+            // =====================================================
 
             "tasks" -> {
+
+                var reminderList by remember {
+                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                }
+
+                var showAddForm by remember { mutableStateOf(false) }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                fun loadReminders() {
+
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return
+                    }
+
+                    FirebaseRepository.getConnectedPatientReminders(
+                        caregiverId = caregiverId,
+                        onSuccess = {
+                            reminderList = it
+                        },
+                        onError = {
+                            message = it.message ?: "Unable to load reminders."
+                        }
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    loadReminders()
+                }
+
                 CaregiverSectionScreen(
                     title = "Tasks & Reminders",
-                    subtitle = "Create and manage tasks for the elderly user's daily routine.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "Manage reminders for the elderly user.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
 
-                    TaskCard(
-                        title = "Morning Routine",
-                        description = "Complete morning activities."
-                    )
+                    if (reminderList.isEmpty()) {
 
-                    TaskCard(
-                        title = "Cognitive Activity",
-                        description = "Complete today's recommended cognitive activity."
-                    )
+                        Text(
+                            text = "No reminders added yet.",
+                            color = SecondaryText
+                        )
 
-                    TaskCard(
-                        title = "Family Connection",
-                        description = "Spend some time connecting with family."
-                    )
+                    } else {
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        reminderList.forEach {
 
-                    FrontendActionButton(
-                        text = "Create New Task"
-                    )
+                            val title =
+                                it["title"] as? String ?: "Reminder"
+
+                            val time =
+                                it["time"] as? String ?: "Time not set"
+
+                            val completed =
+                                it["completed"] as? Boolean ?: false
+
+                            TaskCard(
+                                title = title,
+                                description =
+                                    "$time • ${
+                                        if (completed)
+                                            "Completed"
+                                        else
+                                            "Pending"
+                                    }"
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            showAddForm = !showAddForm
+                            message = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DeepTeal
+                        )
+                    ) {
+                        Text(
+                            if (showAddForm)
+                                "Cancel"
+                            else
+                                "Create New Task"
+                        )
+                    }
+
+                    if (showAddForm) {
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AddReminderForm(
+                            onSaved = {
+                                showAddForm = false
+                                message = "Reminder created successfully."
+                                loadReminders()
+                            },
+                            onError = {
+                                message = it
+                            }
+                        )
+                    }
+
+                    if (message.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
+                    }
                 }
             }
 
+            // =====================================================
+            // PREFERENCES
+            // =====================================================
+
             "preferences" -> {
+
+                var favouriteMusic by remember { mutableStateOf("") }
+                var favouriteActivities by remember { mutableStateOf("") }
+                var favouriteMemories by remember { mutableStateOf("") }
+                var language by remember { mutableStateOf("") }
+
+                var isLoading by remember { mutableStateOf(true) }
+                var isSaving by remember { mutableStateOf(false) }
+                var message by remember { mutableStateOf("") }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                fun loadPreferences() {
+
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        isLoading = false
+                        return
+                    }
+
+                    FirebaseRepository.getLinkedPatientId(
+                        caregiverId = caregiverId,
+
+                        onSuccess = { patientId ->
+
+                            if (patientId == null) {
+                                message = "No patient connected."
+                                isLoading = false
+                                return@getLinkedPatientId
+                            }
+
+                            FirebaseRepository.getPreferences(
+                                userId = patientId,
+
+                                onSuccess = { preferences ->
+
+                                    if (preferences != null) {
+                                        favouriteMusic =
+                                            preferences["favouriteMusic"] as? String ?: ""
+                                        favouriteActivities =
+                                            preferences["favouriteActivities"] as? String ?: ""
+                                        favouriteMemories =
+                                            preferences["favouriteMemories"] as? String ?: ""
+                                        language =
+                                            preferences["language"] as? String ?: ""
+                                    }
+
+                                    isLoading = false
+                                },
+
+                                onError = {
+                                    message = it.message ?: "Unable to load preferences."
+                                    isLoading = false
+                                }
+                            )
+                        },
+
+                        onError = {
+                            message = it.message ?: "Unable to find connected patient."
+                            isLoading = false
+                        }
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    loadPreferences()
+                }
+
                 CaregiverSectionScreen(
                     title = "Preferences",
                     subtitle = "Manage activities and content the elderly user enjoys.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    onBack = { currentSection = "dashboard" }
                 ) {
 
-                    PreferenceCard(
-                        title = "Favourite Music",
-                        description = "Manage preferred music and songs."
-                    )
+                    if (isLoading) {
 
-                    PreferenceCard(
-                        title = "Favourite Activities",
-                        description = "Manage enjoyable cognitive and daily activities."
-                    )
+                        Text(
+                            text = "Loading preferences...",
+                            color = SecondaryText
+                        )
 
-                    PreferenceCard(
-                        title = "Favourite Memories",
-                        description = "Highlight meaningful memories."
-                    )
+                    } else {
 
-                    PreferenceCard(
-                        title = "Language",
-                        description = "English, Hindi, Assamese, Bengali and other supported languages."
-                    )
+                        OutlinedTextField(
+                            value = favouriteMusic,
+                            onValueChange = {
+                                favouriteMusic = it
+                                message = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text("Favourite Music")
+                            }
+                        )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    FrontendActionButton(
-                        text = "Edit Preferences"
-                    )
+                        OutlinedTextField(
+                            value = favouriteActivities,
+                            onValueChange = {
+                                favouriteActivities = it
+                                message = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text("Favourite Activities")
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = favouriteMemories,
+                            onValueChange = {
+                                favouriteMemories = it
+                                message = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text("Favourite Memories")
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = language,
+                            onValueChange = {
+                                language = it
+                                message = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text("Language")
+                            },
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Button(
+                            onClick = {
+
+                                if (caregiverId == null) {
+                                    message = "Caregiver session not found."
+                                    return@Button
+                                }
+
+                                isSaving = true
+                                message = ""
+
+                                FirebaseRepository.getLinkedPatientId(
+                                    caregiverId = caregiverId,
+
+                                    onSuccess = { patientId ->
+
+                                        if (patientId == null) {
+                                            isSaving = false
+                                            message = "No patient connected."
+                                            return@getLinkedPatientId
+                                        }
+
+                                        FirebaseRepository.savePreferences(
+                                            userId = patientId,
+                                            favouriteMusic = favouriteMusic.trim(),
+                                            favouriteActivities = favouriteActivities.trim(),
+                                            favouriteMemories = favouriteMemories.trim(),
+                                            language = language.trim(),
+
+                                            onSuccess = {
+                                                isSaving = false
+                                                message = "Preferences saved."
+                                            },
+
+                                            onError = {
+                                                isSaving = false
+                                                message =
+                                                    it.message ?: "Failed to save preferences."
+                                            }
+                                        )
+                                    },
+
+                                    onError = {
+                                        isSaving = false
+                                        message =
+                                            it.message ?: "Unable to find connected patient."
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSaving,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = DeepTeal
+                            )
+                        ) {
+                            Text(
+                                if (isSaving) "Saving..." else "Save Preferences"
+                            )
+                        }
+
+                        if (message.isNotEmpty()) {
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = message,
+                                color = SecondaryText
+                            )
+                        }
+                    }
                 }
             }
 
+            // =====================================================
+            // PROGRESS
+            // =====================================================
+
             "progress" -> {
+
+                var progressList by remember {
+                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                }
+
+                var message by remember {
+                    mutableStateOf("Loading progress...")
+                }
+
+                val caregiverId = AuthRepository.getCurrentUserId()
+
+                LaunchedEffect(Unit) {
+
+                    if (caregiverId == null) {
+                        message = "Caregiver session not found."
+                        return@LaunchedEffect
+                    }
+
+                    FirebaseRepository.getConnectedPatientProgress(
+                        caregiverId = caregiverId,
+                        onSuccess = {
+                            progressList = it
+                            message =
+                                if (it.isEmpty())
+                                    "No game progress available yet."
+                                else
+                                    ""
+                        },
+                        onError = {
+                            message =
+                                it.message ?: "Unable to load progress."
+                        }
+                    )
+                }
+
                 CaregiverSectionScreen(
                     title = "Progress & Activities",
-                    subtitle = "Monitor weekly activities and overall engagement.",
-                    onBack = {
-                        currentSection = "dashboard"
-                    }
+                    subtitle = "Monitor the elderly user's cognitive game progress.",
+                    onBack = { currentSection = "dashboard" }
                 ) {
 
-                    ProgressCard(
-                        title = "Game Performance",
-                        value = "This week's activity"
-                    )
+                    if (progressList.isEmpty()) {
 
-                    ProgressCard(
-                        title = "Activities Completed",
-                        value = "Daily activity overview"
-                    )
+                        Text(
+                            text = message,
+                            color = SecondaryText
+                        )
 
-                    ProgressCard(
-                        title = "Routine Completion",
-                        value = "Daily routine overview"
-                    )
+                    } else {
 
-                    ProgressCard(
-                        title = "Progress Trends",
-                        value = "Weekly progress trends"
-                    )
+                        progressList.forEach {
+
+                            ProgressCard(
+                                title = "Game Progress",
+                                value =
+                                    "Accuracy: ${
+                                        it["accuracy"] ?: "N/A"
+                                    }\n" +
+                                            "Level: ${
+                                                it["level"] ?: "N/A"
+                                            }\n" +
+                                            "Attempts: ${
+                                                it["attempts"] ?: "N/A"
+                                            }\n" +
+                                            "Completion Time: ${
+                                                it["completionTime"] ?: "N/A"
+                                            }"
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -286,20 +872,15 @@ fun CaregiverDashboardScreen(
         return
     }
 
-
-    /*
-     * MAIN CAREGIVER AREA
-     */
+    // =====================================================
+    // MAIN DASHBOARD
+    // =====================================================
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WarmWhite)
     ) {
-
-        /*
-         * CONTENT AREA
-         */
 
         Column(
             modifier = Modifier
@@ -311,6 +892,7 @@ fun CaregiverDashboardScreen(
             when (currentTab) {
 
                 "home" -> {
+
                     CaregiverHomeTab(
                         caregiverName = caregiverName,
                         onSectionSelected = {
@@ -323,6 +905,7 @@ fun CaregiverDashboardScreen(
                 }
 
                 "manage" -> {
+
                     CaregiverManageTab(
                         onSectionSelected = {
                             currentSection = it
@@ -331,6 +914,7 @@ fun CaregiverDashboardScreen(
                 }
 
                 "monitor" -> {
+
                     CaregiverMonitorTab(
                         onSectionSelected = {
                             currentSection = it
@@ -339,6 +923,7 @@ fun CaregiverDashboardScreen(
                 }
 
                 "more" -> {
+
                     CaregiverMoreTab(
                         onSectionSelected = {
                             currentSection = it
@@ -347,11 +932,6 @@ fun CaregiverDashboardScreen(
                 }
             }
         }
-
-
-        /*
-         * FIXED BOTTOM NAVIGATION
-         */
 
         NavigationBar(
             containerColor = Color.White
@@ -363,10 +943,7 @@ fun CaregiverDashboardScreen(
                     currentTab = "home"
                 },
                 icon = {
-                    Text(
-                        text = "⌂",
-                        fontSize = 22.sp
-                    )
+                    Text("⌂", fontSize = 22.sp)
                 },
                 label = {
                     Text("Home")
@@ -379,10 +956,7 @@ fun CaregiverDashboardScreen(
                     currentTab = "manage"
                 },
                 icon = {
-                    Text(
-                        text = "●",
-                        fontSize = 20.sp
-                    )
+                    Text("●", fontSize = 20.sp)
                 },
                 label = {
                     Text("Manage")
@@ -395,10 +969,7 @@ fun CaregiverDashboardScreen(
                     currentTab = "monitor"
                 },
                 icon = {
-                    Text(
-                        text = "▥",
-                        fontSize = 21.sp
-                    )
+                    Text("▥", fontSize = 21.sp)
                 },
                 label = {
                     Text("Monitor")
@@ -411,10 +982,7 @@ fun CaregiverDashboardScreen(
                     currentTab = "more"
                 },
                 icon = {
-                    Text(
-                        text = "•••",
-                        fontSize = 18.sp
-                    )
+                    Text("•••", fontSize = 18.sp)
                 },
                 label = {
                     Text("More")
@@ -425,9 +993,568 @@ fun CaregiverDashboardScreen(
 }
 
 
-/* ===================================================
-   HOME TAB
-=================================================== */
+// =====================================================
+// ADD FAMILY FORM
+// =====================================================
+
+@Composable
+private fun AddFamilyForm(
+    onSaved: () -> Unit,
+    onError: (String) -> Unit
+) {
+
+    var name by remember { mutableStateOf("") }
+    var relation by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+
+            Text(
+                text = "Add Family Member",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    name = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Name")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = relation,
+                onValueChange = {
+                    relation = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Relation")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = {
+
+                    if (name.trim().isEmpty()) {
+                        onError("Please enter a name.")
+                        return@Button
+                    }
+
+                    if (relation.trim().isEmpty()) {
+                        onError("Please enter the relation.")
+                        return@Button
+                    }
+
+                    val caregiverId =
+                        AuthRepository.getCurrentUserId()
+
+                    if (caregiverId == null) {
+                        onError("Caregiver session not found.")
+                        return@Button
+                    }
+
+                    FirebaseRepository.getLinkedPatientId(
+                        caregiverId = caregiverId,
+
+                        onSuccess = { patientId ->
+
+                            if (patientId == null) {
+                                onError("No patient connected.")
+                            } else {
+
+                                FirebaseRepository.addFamilyMember(
+                                    userId = patientId,
+                                    name = name.trim(),
+                                    relation = relation.trim(),
+
+                                    onSuccess = {
+                                        onSaved()
+                                    },
+
+                                    onError = {
+                                        onError(
+                                            it.message
+                                                ?: "Failed to add family member."
+                                        )
+                                    }
+                                )
+                            }
+                        },
+
+                        onError = {
+                            onError(
+                                it.message
+                                    ?: "Unable to find connected patient."
+                            )
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepTeal
+                )
+            ) {
+                Text("Save Family Member")
+            }
+        }
+    }
+}
+
+
+// =====================================================
+// ADD MEMORY FORM
+// =====================================================
+
+@Composable
+private fun AddMemoryForm(
+    onSaved: () -> Unit,
+    onError: (String) -> Unit
+) {
+
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var people by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+
+            Text(
+                text = "Add Memory",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = {
+                    title = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Memory Title")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = {
+                    description = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Description")
+                }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = people,
+                onValueChange = {
+                    people = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("People")
+                },
+                placeholder = {
+                    Text("Example: Priya, Raj")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = {
+
+                    if (title.trim().isEmpty()) {
+                        onError("Please enter a memory title.")
+                        return@Button
+                    }
+
+                    if (description.trim().isEmpty()) {
+                        onError("Please enter a description.")
+                        return@Button
+                    }
+
+                    val caregiverId =
+                        AuthRepository.getCurrentUserId()
+
+                    if (caregiverId == null) {
+                        onError("Caregiver session not found.")
+                        return@Button
+                    }
+
+                    val peopleList =
+                        people.split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+
+                    FirebaseRepository.getLinkedPatientId(
+                        caregiverId = caregiverId,
+
+                        onSuccess = { patientId ->
+
+                            if (patientId == null) {
+                                onError("No patient connected.")
+                            } else {
+
+                                FirebaseRepository.addMemory(
+                                    userId = patientId,
+                                    title = title.trim(),
+                                    description = description.trim(),
+                                    people = peopleList,
+
+                                    onSuccess = {
+                                        onSaved()
+                                    },
+
+                                    onError = {
+                                        onError(
+                                            it.message
+                                                ?: "Failed to add memory."
+                                        )
+                                    }
+                                )
+                            }
+                        },
+
+                        onError = {
+                            onError(
+                                it.message
+                                    ?: "Unable to find connected patient."
+                            )
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepTeal
+                )
+            ) {
+                Text("Save Memory")
+            }
+        }
+    }
+}
+
+
+// =====================================================
+// ADD ROUTINE FORM
+// =====================================================
+
+@Composable
+private fun AddRoutineForm(
+    onSaved: () -> Unit,
+    onError: (String) -> Unit
+) {
+
+    var title by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+
+            Text(
+                text = "Add Routine Activity",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = {
+                    title = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Activity")
+                },
+                placeholder = {
+                    Text("Example: Morning Walk")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = time,
+                onValueChange = {
+                    time = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Time")
+                },
+                placeholder = {
+                    Text("Example: 08:00 AM")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = {
+
+                    if (title.trim().isEmpty()) {
+                        onError("Please enter an activity.")
+                        return@Button
+                    }
+
+                    if (time.trim().isEmpty()) {
+                        onError("Please enter a time.")
+                        return@Button
+                    }
+
+                    val caregiverId =
+                        AuthRepository.getCurrentUserId()
+
+                    if (caregiverId == null) {
+                        onError("Caregiver session not found.")
+                        return@Button
+                    }
+
+                    FirebaseRepository.getLinkedPatientId(
+                        caregiverId = caregiverId,
+
+                        onSuccess = { patientId ->
+
+                            if (patientId == null) {
+                                onError("No patient connected.")
+                            } else {
+
+                                FirebaseRepository.addSchedule(
+                                    userId = patientId,
+                                    title = title.trim(),
+                                    time = time.trim(),
+
+                                    onSuccess = {
+                                        onSaved()
+                                    },
+
+                                    onError = {
+                                        onError(
+                                            it.message
+                                                ?: "Failed to add routine."
+                                        )
+                                    }
+                                )
+                            }
+                        },
+
+                        onError = {
+                            onError(
+                                it.message
+                                    ?: "Unable to find connected patient."
+                            )
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepTeal
+                )
+            ) {
+                Text("Save Routine")
+            }
+        }
+    }
+}
+
+
+// =====================================================
+// ADD REMINDER FORM
+// =====================================================
+
+@Composable
+private fun AddReminderForm(
+    onSaved: () -> Unit,
+    onError: (String) -> Unit
+) {
+
+    var title by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+
+            Text(
+                text = "Create Reminder",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = {
+                    title = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Reminder")
+                },
+                placeholder = {
+                    Text("Example: Take medicine")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = time,
+                onValueChange = {
+                    time = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Time")
+                },
+                placeholder = {
+                    Text("Example: 09:00 AM")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = {
+
+                    if (title.trim().isEmpty()) {
+                        onError("Please enter a reminder.")
+                        return@Button
+                    }
+
+                    if (time.trim().isEmpty()) {
+                        onError("Please enter a time.")
+                        return@Button
+                    }
+
+                    val caregiverId =
+                        AuthRepository.getCurrentUserId()
+
+                    if (caregiverId == null) {
+                        onError("Caregiver session not found.")
+                        return@Button
+                    }
+
+                    FirebaseRepository.getLinkedPatientId(
+                        caregiverId = caregiverId,
+
+                        onSuccess = { patientId ->
+
+                            if (patientId == null) {
+                                onError("No patient connected.")
+                            } else {
+
+                                FirebaseRepository.addReminder(
+                                    userId = patientId,
+                                    title = title.trim(),
+                                    time = time.trim(),
+
+                                    onSuccess = {
+                                        onSaved()
+                                    },
+
+                                    onError = {
+                                        onError(
+                                            it.message
+                                                ?: "Failed to create reminder."
+                                        )
+                                    }
+                                )
+                            }
+                        },
+
+                        onError = {
+                            onError(
+                                it.message
+                                    ?: "Unable to find connected patient."
+                            )
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepTeal
+                )
+            ) {
+                Text("Save Reminder")
+            }
+        }
+    }
+}
+
+
+// =====================================================
+// HOME TAB
+// =====================================================
 
 @Composable
 private fun CaregiverHomeTab(
@@ -437,7 +1564,7 @@ private fun CaregiverHomeTab(
 ) {
 
     Text(
-        text = "Caregiver Dashboard",
+        "Caregiver Dashboard",
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
@@ -446,17 +1573,12 @@ private fun CaregiverHomeTab(
     Spacer(modifier = Modifier.height(6.dp))
 
     Text(
-        text = "Welcome, $caregiverName",
+        "Welcome, $caregiverName",
         fontSize = 16.sp,
         color = SecondaryText
     )
 
     Spacer(modifier = Modifier.height(22.dp))
-
-
-    /*
-     * ELDERLY USER CARD
-     */
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -471,7 +1593,7 @@ private fun CaregiverHomeTab(
         ) {
 
             Text(
-                text = "Elderly User",
+                "Elderly User",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
@@ -480,7 +1602,7 @@ private fun CaregiverHomeTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Manage the user's profile, memories, routine and preferences.",
+                "Manage the user's profile, memories, routine and preferences.",
                 fontSize = 15.sp,
                 color = SecondaryText
             )
@@ -491,30 +1613,19 @@ private fun CaregiverHomeTab(
                 onClick = {
                     onSectionSelected("profile")
                 },
-                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DeepTeal
                 )
             ) {
-
-                Text(
-                    text = "View Profile",
-                    color = Color.White
-                )
+                Text("View Profile")
             }
         }
     }
 
-
     Spacer(modifier = Modifier.height(26.dp))
 
-
-    /*
-     * QUICK ACTIONS
-     */
-
     Text(
-        text = "Quick Actions",
+        "Quick Actions",
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
@@ -523,39 +1634,25 @@ private fun CaregiverHomeTab(
     Spacer(modifier = Modifier.height(14.dp))
 
     DashboardButtonRow(
-        firstTitle = "Elderly Profile",
-        firstAction = {
-            onSectionSelected("profile")
-        },
-        secondTitle = "Family",
-        secondAction = {
-            onSectionSelected("family")
-        }
+        "Elderly Profile",
+        { onSectionSelected("profile") },
+        "Family",
+        { onSectionSelected("family") }
     )
 
     Spacer(modifier = Modifier.height(12.dp))
 
     DashboardButtonRow(
-        firstTitle = "Memories",
-        firstAction = {
-            onSectionSelected("memories")
-        },
-        secondTitle = "Daily Routine",
-        secondAction = {
-            onSectionSelected("routine")
-        }
+        "Memories",
+        { onSectionSelected("memories") },
+        "Daily Routine",
+        { onSectionSelected("routine") }
     )
-
 
     Spacer(modifier = Modifier.height(26.dp))
 
-
-    /*
-     * WEEKLY OVERVIEW
-     */
-
     Text(
-        text = "Weekly Overview",
+        "Weekly Overview",
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
@@ -563,69 +1660,26 @@ private fun CaregiverHomeTab(
 
     Spacer(modifier = Modifier.height(14.dp))
 
-    Card(
+    ProgressCard(
+        "Activity Summary",
+        "Games, activities and routine information."
+    )
+
+    Button(
+        onClick = onMonitorSelected,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
+        colors = ButtonDefaults.buttonColors(
+            containerColor = DeepTeal
         )
     ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "Activity Summary",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            MonitorRow(
-                title = "Games",
-                value = "View"
-            )
-
-            MonitorRow(
-                title = "Activities",
-                value = "View"
-            )
-
-            MonitorRow(
-                title = "Routine",
-                value = "View"
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Button(
-                onClick = onMonitorSelected,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepTeal
-                )
-            ) {
-
-                Text(
-                    text = "View Progress",
-                    color = Color.White
-                )
-            }
-        }
+        Text("View Progress")
     }
-
-
-    Spacer(modifier = Modifier.height(20.dp))
 }
 
 
-/* ===================================================
-   MANAGE TAB
-=================================================== */
+// =====================================================
+// MANAGE TAB
+// =====================================================
 
 @Composable
 private fun CaregiverManageTab(
@@ -633,85 +1687,35 @@ private fun CaregiverManageTab(
 ) {
 
     Text(
-        text = "Manage",
+        "Manage",
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
 
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "Manage the elderly user's information and daily experience.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
+    Spacer(modifier = Modifier.height(20.dp))
 
     DashboardButtonRow(
-        firstTitle = "Elderly Profile",
-        firstAction = {
-            onSectionSelected("profile")
-        },
-        secondTitle = "Family",
-        secondAction = {
-            onSectionSelected("family")
-        }
+        "Elderly Profile",
+        { onSectionSelected("profile") },
+        "Family",
+        { onSectionSelected("family") }
     )
 
     Spacer(modifier = Modifier.height(12.dp))
 
     DashboardButtonRow(
-        firstTitle = "Memories",
-        firstAction = {
-            onSectionSelected("memories")
-        },
-        secondTitle = "Daily Routine",
-        secondAction = {
-            onSectionSelected("routine")
-        }
+        "Memories",
+        { onSectionSelected("memories") },
+        "Daily Routine",
+        { onSectionSelected("routine") }
     )
-
-
-    Spacer(modifier = Modifier.height(26.dp))
-
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "Personalized Care",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Keep the elderly user's profile, family connections, memories and routine personalized.",
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-        }
-    }
 }
 
 
-/* ===================================================
-   MONITOR TAB
-=================================================== */
+// =====================================================
+// MONITOR TAB
+// =====================================================
 
 @Composable
 private fun CaregiverMonitorTab(
@@ -719,69 +1723,46 @@ private fun CaregiverMonitorTab(
 ) {
 
     Text(
-        text = "Monitor",
+        "Monitor",
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
 
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "View activity and progress information.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
+    Spacer(modifier = Modifier.height(20.dp))
 
     ProgressCard(
-        title = "Game Performance",
-        value = "This week's cognitive game activity"
+        "Game Performance",
+        "View cognitive game performance."
     )
 
     ProgressCard(
-        title = "Activities Completed",
-        value = "Overview of completed activities"
+        "Activities Completed",
+        "View completed activities."
     )
 
     ProgressCard(
-        title = "Routine Completion",
-        value = "Overview of daily routine"
+        "Routine Completion",
+        "View daily routine completion."
     )
-
-    ProgressCard(
-        title = "Progress Trends",
-        value = "Weekly engagement and activity trends"
-    )
-
-
-    Spacer(modifier = Modifier.height(8.dp))
-
 
     Button(
         onClick = {
             onSectionSelected("progress")
         },
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = DeepTeal
         )
     ) {
-
-        Text(
-            text = "Open Progress Details",
-            color = Color.White
-        )
+        Text("Open Progress Details")
     }
 }
 
 
-/* ===================================================
-   MORE TAB
-=================================================== */
+// =====================================================
+// MORE TAB
+// =====================================================
 
 @Composable
 private fun CaregiverMoreTab(
@@ -789,72 +1770,26 @@ private fun CaregiverMoreTab(
 ) {
 
     Text(
-        text = "More",
+        "More",
         fontSize = 28.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
 
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = "Additional caregiver controls.",
-        fontSize = 15.sp,
-        color = SecondaryText
-    )
-
-    Spacer(modifier = Modifier.height(24.dp))
-
+    Spacer(modifier = Modifier.height(20.dp))
 
     DashboardButtonRow(
-        firstTitle = "Tasks",
-        firstAction = {
-            onSectionSelected("tasks")
-        },
-        secondTitle = "Preferences",
-        secondAction = {
-            onSectionSelected("preferences")
-        }
+        "Tasks",
+        { onSectionSelected("tasks") },
+        "Preferences",
+        { onSectionSelected("preferences") }
     )
-
-
-    Spacer(modifier = Modifier.height(24.dp))
-
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-
-            Text(
-                text = "MIND MITRA",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "A personalized AI-powered cognitive-care companion for elderly users.",
-                fontSize = 15.sp,
-                color = SecondaryText
-            )
-        }
-    }
 }
 
 
-/* ===================================================
-   TWO BUTTON ROW
-=================================================== */
+// =====================================================
+// TWO BUTTON ROW
+// =====================================================
 
 @Composable
 private fun DashboardButtonRow(
@@ -869,54 +1804,46 @@ private fun DashboardButtonRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
-        CaregiverActionButton(
-            title = firstTitle,
-            modifier = Modifier.weight(1f),
-            onClick = firstAction
-        )
+        Button(
+            onClick = firstAction,
+            modifier = Modifier
+                .weight(1f)
+                .height(80.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SoftMint
+            ),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(
+                firstTitle,
+                color = DeepTeal,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
-        CaregiverActionButton(
-            title = secondTitle,
-            modifier = Modifier.weight(1f),
-            onClick = secondAction
-        )
+        Button(
+            onClick = secondAction,
+            modifier = Modifier
+                .weight(1f)
+                .height(80.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SoftMint
+            ),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(
+                secondTitle,
+                color = DeepTeal,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
 
-/* ===================================================
-   ACTION BUTTON
-=================================================== */
-
-@Composable
-private fun CaregiverActionButton(
-    title: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(90.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = SoftMint
-        )
-    ) {
-
-        Text(
-            text = title,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DeepTeal
-        )
-    }
-}
-
-
-/* ===================================================
-   SECTION SCREEN
-=================================================== */
+// =====================================================
+// SECTION SCREEN
+// =====================================================
 
 @Composable
 private fun CaregiverSectionScreen(
@@ -941,23 +1868,20 @@ private fun CaregiverSectionScreen(
 
             Button(
                 onClick = onBack,
-                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SoftMint
                 )
             ) {
-
                 Text(
-                    text = "← Back",
-                    color = DeepTeal,
-                    fontWeight = FontWeight.SemiBold
+                    "← Back",
+                    color = DeepTeal
                 )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = title,
+                title,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
@@ -966,7 +1890,7 @@ private fun CaregiverSectionScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = subtitle,
+                subtitle,
                 fontSize = 15.sp,
                 color = SecondaryText
             )
@@ -979,9 +1903,9 @@ private fun CaregiverSectionScreen(
 }
 
 
-/* ===================================================
-   INFORMATION CARD
-=================================================== */
+// =====================================================
+// CARDS
+// =====================================================
 
 @Composable
 private fun SectionInfoCard(
@@ -1004,7 +1928,7 @@ private fun SectionInfoCard(
         ) {
 
             Text(
-                text = title,
+                title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
@@ -1013,7 +1937,7 @@ private fun SectionInfoCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = description,
+                description,
                 fontSize = 14.sp,
                 color = SecondaryText
             )
@@ -1021,123 +1945,24 @@ private fun SectionInfoCard(
     }
 }
 
-
-/* ===================================================
-   MEMORY CARD
-=================================================== */
-
-@Composable
-private fun MemoryCategoryCard(
-    title: String
-) {
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = LightCard
-        )
-    ) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DarkText
-            )
-
-            Text(
-                text = "Open →",
-                fontSize = 14.sp,
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-
-/* ===================================================
-   PREFERENCE CARD
-=================================================== */
 
 @Composable
 private fun PreferenceCard(
     title: String,
     description: String
 ) {
-
-    SectionInfoCard(
-        title = title,
-        description = description
-    )
+    SectionInfoCard(title, description)
 }
 
-
-/* ===================================================
-   TASK CARD
-=================================================== */
 
 @Composable
 private fun TaskCard(
     title: String,
     description: String
 ) {
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = LightCard
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
-
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = description,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Frontend task",
-                fontSize = 13.sp,
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
+    SectionInfoCard(title, description)
 }
 
-
-/* ===================================================
-   ROUTINE ITEM
-=================================================== */
 
 @Composable
 private fun RoutineItem(
@@ -1162,8 +1987,7 @@ private fun RoutineItem(
         ) {
 
             Text(
-                text = time,
-                fontSize = 15.sp,
+                time,
                 fontWeight = FontWeight.Bold,
                 color = DeepTeal
             )
@@ -1171,8 +1995,7 @@ private fun RoutineItem(
             Spacer(modifier = Modifier.width(20.dp))
 
             Text(
-                text = activity,
-                fontSize = 16.sp,
+                activity,
                 fontWeight = FontWeight.SemiBold,
                 color = DarkText
             )
@@ -1180,10 +2003,6 @@ private fun RoutineItem(
     }
 }
 
-
-/* ===================================================
-   PROGRESS CARD
-=================================================== */
 
 @Composable
 private fun ProgressCard(
@@ -1206,7 +2025,7 @@ private fun ProgressCard(
         ) {
 
             Text(
-                text = title,
+                title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
@@ -1215,73 +2034,10 @@ private fun ProgressCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = value,
+                value,
                 fontSize = 14.sp,
                 color = SecondaryText
             )
         }
-    }
-}
-
-
-/* ===================================================
-   MONITOR ROW
-=================================================== */
-
-@Composable
-private fun MonitorRow(
-    title: String,
-    value: String
-) {
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-
-        Text(
-            text = title,
-            fontSize = 15.sp,
-            color = SecondaryText
-        )
-
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = DeepTeal,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-
-/* ===================================================
-   FRONTEND ACTION BUTTON
-=================================================== */
-
-@Composable
-private fun FrontendActionButton(
-    text: String
-) {
-
-    Button(
-        onClick = {
-            // Backend functionality will be connected later.
-        },
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = DeepTeal
-        )
-    ) {
-
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }

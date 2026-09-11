@@ -1,6 +1,5 @@
 package com.example.mind_mitra.auth
 
-
 import android.util.Patterns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mind_mitra.data.AuthRepository
 
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
@@ -34,8 +34,11 @@ private val ErrorRed = Color(0xFFB3261E)
 fun LoginScreen(
     role: String,
     onBack: () -> Unit,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onSignUpSuccess: () -> Unit
 ) {
+    var isSignUp by remember { mutableStateOf(false) }
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
@@ -50,7 +53,7 @@ fun LoginScreen(
     ) {
 
         Text(
-            text = "$role Login",
+            text = if (isSignUp) "$role Sign Up" else "$role Login",
             fontSize = 30.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
@@ -59,7 +62,10 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(10.dp))
 
         Text(
-            text = "Sign in to continue to MIND MITRA",
+            text = if (isSignUp)
+                "Create your MIND MITRA account"
+            else
+                "Sign in to continue to MIND MITRA",
             fontSize = 16.sp,
             color = SecondaryText
         )
@@ -107,6 +113,7 @@ fun LoginScreen(
 
         Button(
             onClick = {
+
                 when {
                     email.isBlank() -> {
                         errorMessage = "Please enter your email."
@@ -128,8 +135,39 @@ fun LoginScreen(
                     }
 
                     else -> {
+
                         errorMessage = ""
-                        onLoginSuccess()
+
+                        if (isSignUp) {
+
+                            AuthRepository.signUp(
+                                email = email.trim(),
+                                password = password,
+                                onSuccess = {
+                                    onSignUpSuccess()
+                                },
+                                onError = { exception ->
+                                    errorMessage =
+                                        exception.message
+                                            ?: "Sign up failed. Please try again."
+                                }
+                            )
+
+                        } else {
+
+                            AuthRepository.login(
+                                email = email.trim(),
+                                password = password,
+                                onSuccess = {
+                                    onLoginSuccess()
+                                },
+                                onError = { exception ->
+                                    errorMessage =
+                                        exception.message
+                                            ?: "Login failed. Please check your email and password."
+                                }
+                            )
+                        }
                     }
                 }
             },
@@ -142,13 +180,32 @@ fun LoginScreen(
             )
         ) {
             Text(
-                text = "Login",
+                text = if (isSignUp) "Create Account" else "Login",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                isSignUp = !isSignUp
+                errorMessage = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = DeepTeal
+            )
+        ) {
+            Text(
+                text = if (isSignUp)
+                    "Already have an account? Login"
+                else
+                    "New user? Sign Up"
+            )
+        }
 
         Button(
             onClick = onBack,
