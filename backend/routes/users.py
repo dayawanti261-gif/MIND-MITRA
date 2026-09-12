@@ -43,11 +43,17 @@ def get_user(user_id: str):
 def create_user(user: User):
     user_ref = db.collection("users").document(user.user_id)
 
+    # CHANGED: was a plain .set(), which overwrites the whole document.
+    # The Android app stores connectionPin, linkedPatientId/linkedCaregiverId,
+    # email, and role on this same users/{uid} doc. If this endpoint is ever
+    # called after the app has already written a profile, a non-merge .set()
+    # silently wipes the caregiver<->patient link and connectionPin. merge=True
+    # only touches the fields listed here.
     user_ref.set({
         "user_id": user.user_id,
         "name": user.name,
         "age": user.age
-    })
+    }, merge=True)
 
     return {
         "message": "User created successfully!",

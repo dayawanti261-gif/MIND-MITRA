@@ -1,6 +1,7 @@
 package com.example.mind_mitra.auth
 
-
+import com.example.mind_mitra.data.AuthRepository
+import com.example.mind_mitra.data.FirebaseRepository
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
@@ -38,6 +41,10 @@ fun UserProfileScreen(
 ) {
 
     var name by remember {
+        mutableStateOf("")
+    }
+
+    var connectionPin by remember {
         mutableStateOf("")
     }
 
@@ -71,6 +78,9 @@ fun UserProfileScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+
+        // NAME
+
         OutlinedTextField(
             value = name,
             onValueChange = {
@@ -85,9 +95,51 @@ fun UserProfileScreen(
             shape = RoundedCornerShape(14.dp)
         )
 
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+
+        // CONNECTION PIN
+
+        OutlinedTextField(
+            value = connectionPin,
+            onValueChange = {
+
+                // Only allow numbers
+                if (it.all { char -> char.isDigit() } && it.length <= 6) {
+                    connectionPin = it
+                    errorMessage = ""
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = {
+                Text("Create 6-digit caregiver PIN")
+            },
+            placeholder = {
+                Text("Example: 482615")
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number
+            )
+        )
+
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Share this PIN with your trusted caregiver.",
+            fontSize = 13.sp,
+            color = SecondaryText
+        )
+
+
         Spacer(modifier = Modifier.height(12.dp))
 
+
         if (errorMessage.isNotEmpty()) {
+
             Text(
                 text = errorMessage,
                 color = Color(0xFFB3261E),
@@ -95,15 +147,67 @@ fun UserProfileScreen(
             )
         }
 
+
         Spacer(modifier = Modifier.height(24.dp))
+
+
+        // CONTINUE BUTTON
 
         Button(
             onClick = {
 
                 if (name.trim().isEmpty()) {
+
                     errorMessage = "Please enter your name."
+
+                } else if (connectionPin.length != 6) {
+
+                    errorMessage =
+                        "Please create a 6-digit PIN."
+
                 } else {
-                    onProfileCompleted(name.trim())
+
+                    val userId =
+                        AuthRepository.getCurrentUserId()
+
+                    if (userId == null) {
+
+                        errorMessage =
+                            "User session not found. Please log in again."
+
+                    } else {
+
+                        val email =
+                            AuthRepository.getCurrentUserEmail()
+
+                        if (email == null) {
+
+                            errorMessage =
+                                "User email not found. Please log in again."
+
+                        } else {
+
+                            FirebaseRepository.saveUserProfile(
+                                userId = userId,
+                                name = name.trim(),
+                                language = "Hindi",
+                                email = email,
+                                connectionPin = connectionPin,
+                                onSuccess = {
+
+                                    onProfileCompleted(
+                                        name.trim()
+                                    )
+                                },
+                                onError = { exception ->
+
+                                    errorMessage =
+                                        exception.message
+                                            ?: "Failed to save profile. Please try again."
+                                }
+                            )
+                        }
+                    }
                 }
             },
             modifier = Modifier
@@ -114,6 +218,7 @@ fun UserProfileScreen(
                 containerColor = DeepTeal
             )
         ) {
+
             Text(
                 text = "Continue",
                 fontSize = 17.sp,
