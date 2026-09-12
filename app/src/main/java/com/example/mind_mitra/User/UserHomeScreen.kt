@@ -1,5 +1,7 @@
 package com.example.mind_mitra.user
-
+import androidx.compose.runtime.LaunchedEffect
+import com.example.mind_mitra.data.AuthRepository
+import com.example.mind_mitra.data.FirebaseRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -284,6 +286,29 @@ private fun HomeContent(
 @Composable
 private fun ReminderCard() {
 
+    var reminderTitle by remember { mutableStateOf("") }
+    var reminderTime by remember { mutableStateOf("") }
+    var hasReminder by remember { mutableStateOf(false) }
+
+    val userId = AuthRepository.getCurrentUserId()
+
+    LaunchedEffect(Unit) {
+        if (userId != null) {
+            FirebaseRepository.getReminders(
+                userId = userId,
+                onSuccess = { list ->
+                    val first = list.firstOrNull()
+                    if (first != null) {
+                        reminderTitle = first["title"] as? String ?: ""
+                        reminderTime = first["time"] as? String ?: ""
+                        hasReminder = true
+                    }
+                },
+                onError = { }
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -303,34 +328,36 @@ private fun ReminderCard() {
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Cognitive Activity",
+            text = if (hasReminder) reminderTitle else "No reminders yet",
             fontSize = 21.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        if (hasReminder) {
 
-        Text(
-            text = "10:00 AM  •  15 minutes",
-            fontSize = 14.sp,
-            color = SecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Button(
-            onClick = {},
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = DeepTeal
-            )
-        ) {
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Start Activity",
-                fontWeight = FontWeight.SemiBold
+                text = reminderTime,
+                fontSize = 14.sp,
+                color = SecondaryText
             )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = {},
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepTeal
+                )
+            ) {
+                Text(
+                    text = "Start Activity",
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -809,38 +836,34 @@ private fun MemoryVaultScreen(
     onBack: () -> Unit
 ) {
 
-    val categories = listOf(
+    var memoryList by remember {
+        mutableStateOf<List<Map<String, Any>>>(emptyList())
+    }
 
-        MemoryCategory(
-            "Family",
-            "Photos and memories of family members"
-        ),
+    var message by remember { mutableStateOf("") }
 
-        MemoryCategory(
-            "Childhood",
-            "Special memories from earlier years"
-        ),
+    val userId = AuthRepository.getCurrentUserId()
 
-        MemoryCategory(
-            "Important Events",
-            "Birthdays, celebrations and special occasions"
-        ),
+    LaunchedEffect(Unit) {
+        if (userId == null) {
+            message = "User session not found."
+        } else {
+            FirebaseRepository.getMemories(
+                userId = userId,
+                onSuccess = { memoryList = it },
+                onError = {
+                    message = it.message ?: "Unable to load memories."
+                }
+            )
+        }
+    }
 
+    val categories = memoryList.map { memory ->
         MemoryCategory(
-            "Places",
-            "Meaningful places and old photographs"
-        ),
-
-        MemoryCategory(
-            "People",
-            "Important people and familiar faces"
-        ),
-
-        MemoryCategory(
-            "Voice Messages",
-            "Messages shared by family"
+            title = memory["title"] as? String ?: "Untitled",
+            description = memory["description"] as? String ?: ""
         )
-    )
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -858,7 +881,6 @@ private fun MemoryVaultScreen(
             TextButton(
                 onClick = onBack
             ) {
-
                 Text(
                     text = "← Back",
                     color = DeepTeal,
@@ -882,6 +904,20 @@ private fun MemoryVaultScreen(
             )
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            if (message.isNotEmpty()) {
+                Text(
+                    text = message,
+                    color = SecondaryText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            } else if (categories.isEmpty()) {
+                Text(
+                    text = "No memories added yet.",
+                    color = SecondaryText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
 
         LazyVerticalGrid(
@@ -897,7 +933,6 @@ private fun MemoryVaultScreen(
         ) {
 
             items(categories) { category ->
-
                 MemoryCategoryCard(category)
             }
         }
@@ -960,6 +995,28 @@ private fun RoutineScreen(
     onBack: () -> Unit
 ) {
 
+    var scheduleList by remember {
+        mutableStateOf<List<Map<String, Any>>>(emptyList())
+    }
+
+    var message by remember { mutableStateOf("") }
+
+    val userId = AuthRepository.getCurrentUserId()
+
+    LaunchedEffect(Unit) {
+        if (userId == null) {
+            message = "User session not found."
+        } else {
+            FirebaseRepository.getSchedule(
+                userId = userId,
+                onSuccess = { scheduleList = it },
+                onError = {
+                    message = it.message ?: "Unable to load routine."
+                }
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -970,7 +1027,6 @@ private fun RoutineScreen(
         TextButton(
             onClick = onBack
         ) {
-
             Text(
                 text = "← Back",
                 color = DeepTeal,
@@ -995,46 +1051,34 @@ private fun RoutineScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        RoutineCard(
-            "7:00 AM",
-            "Wake up",
-            "Start your morning routine."
-        )
+        if (scheduleList.isEmpty()) {
+            Text(
+                text = "No routine items added yet.",
+                color = SecondaryText
+            )
+        } else {
+            scheduleList.forEach { item ->
+                RoutineCard(
+                    time = item["time"] as? String ?: "",
+                    title = item["title"] as? String ?: "",
+                    description = "",
+                    completed = item["completed"] as? Boolean ?: false
+                )
+            }
+        }
 
-        RoutineCard(
-            "8:00 AM",
-            "Breakfast",
-            "Morning meal.",
-            true
-        )
-
-        RoutineCard(
-            "10:00 AM",
-            "Cognitive Activity",
-            "Spend a few minutes on a cognitive activity."
-        )
-
-        RoutineCard(
-            "1:00 PM",
-            "Lunch",
-            "Afternoon meal."
-        )
-
-        RoutineCard(
-            "4:00 PM",
-            "Doctor Appointment",
-            "Caregiver-entered appointment reminder."
-        )
-
-        RoutineCard(
-            "7:30 PM",
-            "Dinner",
-            "Evening meal."
-        )
+        if (message.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = message,
+                color = SecondaryText
+            )
+        }
 
         Spacer(modifier = Modifier.height(30.dp))
     }
 }
+
 
 
 @Composable
