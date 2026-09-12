@@ -127,9 +127,10 @@ object FirebaseRepository {
             .addOnSuccessListener { document ->
                 onSuccess(document.getString("patientId"))
             }
-            .addOnFailureListener { onError(it) }
+            .addOnFailureListener {
+                onError(it)
+            }
     }
-
     fun getConnectedPatientProfile(
         caregiverId: String,
         onSuccess: (Map<String, Any>?) -> Unit,
