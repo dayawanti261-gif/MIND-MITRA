@@ -1,5 +1,8 @@
 package com.example.mind_mitra
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -222,6 +225,7 @@ fun MindMitraApp() {
                                 caregiverId = caregiverId,
 
                                 onSuccess = { patientId ->
+                                    println("CONNECTED PATIENT ID = $patientId")
 
                                     currentScreen =
                                         if (patientId != null)

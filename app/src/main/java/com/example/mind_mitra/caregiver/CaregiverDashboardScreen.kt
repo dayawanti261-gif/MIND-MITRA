@@ -1,5 +1,10 @@
 package com.example.mind_mitra.caregiver
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import java.util.Calendar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,9 +38,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
+import androidx.compose.ui.platform.LocalContext
+import com.example.mind_mitra.reminder.ReminderReceiver
 
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
@@ -1428,6 +1434,8 @@ private fun AddReminderForm(
     var title by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
 
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -1510,7 +1518,9 @@ private fun AddReminderForm(
                         onSuccess = { patientId ->
 
                             if (patientId == null) {
+
                                 onError("No patient connected.")
+
                             } else {
 
                                 FirebaseRepository.addReminder(
@@ -1519,6 +1529,14 @@ private fun AddReminderForm(
                                     time = time.trim(),
 
                                     onSuccess = {
+
+                                        // Schedule reminder on caregiver phone
+                                        scheduleReminder(
+                                            context = context,
+                                            title = title.trim(),
+                                            time = time.trim()
+                                        )
+
                                         onSaved()
                                     },
 
@@ -1540,7 +1558,9 @@ private fun AddReminderForm(
                         }
                     )
                 },
+
                 modifier = Modifier.fillMaxWidth(),
+
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DeepTeal
                 )
@@ -1548,6 +1568,84 @@ private fun AddReminderForm(
                 Text("Save Reminder")
             }
         }
+    }
+}
+
+private fun scheduleReminder(
+    context: Context,
+    title: String,
+    time: String
+) {
+    try {
+
+        val parts = time.trim().split(" ")
+
+        val timePart = parts[0]
+
+        val amPm =
+            if (parts.size > 1) {
+                parts[1].uppercase()
+            } else {
+                ""
+            }
+
+        val hourMinute = timePart.split(":")
+
+        var hour = hourMinute[0].toInt()
+        val minute = hourMinute[1].toInt()
+
+        if (amPm == "PM" && hour != 12) {
+            hour += 12
+        }
+
+        if (amPm == "AM" && hour == 12) {
+            hour = 0
+        }
+
+        val calendar = Calendar.getInstance().apply {
+
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+
+            // If today's time has already passed,
+            // schedule it for tomorrow.
+            if (timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+
+        val intent =
+            Intent(context, ReminderReceiver::class.java).apply {
+
+                putExtra("title", title)
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                title.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        val alarmManager =
+            context.getSystemService(
+                Context.ALARM_SERVICE
+            ) as AlarmManager
+
+        alarmManager.setRepeating(
+            AlarmManager.RTC_WAKEUP,
+            calendar.timeInMillis,
+            AlarmManager.INTERVAL_DAY,
+            pendingIntent
+        )
+
+    } catch (e: Exception) {
+
+        e.printStackTrace()
     }
 }
 
