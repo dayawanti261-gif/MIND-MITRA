@@ -22,6 +22,22 @@ def get_memories():
         "memories": memories
     }
 
+@router.get("/user/{user_id}")
+def get_user_memories(user_id: str):
+    memories_ref = db.collection("memories").where(
+        "user_id", "==", user_id
+    ).stream()
+
+    memories = []
+
+    for memory in memories_ref:
+        memories.append(memory.to_dict())
+
+    return {
+        "user_id": user_id,
+        "memories": memories
+    }
+
 
 # GET one memory
 @router.get("/{memory_id}")
@@ -45,7 +61,8 @@ def add_memory(memory: Memory):
     memory_ref.set({
         "user_id": memory.user_id,
         "title": memory.title,
-        "description": memory.description
+        "description": memory.description,
+        "photo_path": memory.photo_path
     })
 
     return {

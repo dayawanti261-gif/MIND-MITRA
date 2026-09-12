@@ -11,6 +11,7 @@ class Memory(BaseModel):
     user_id: str
     title: str
     description: str
+    photo_path: str | None = None
 
 
 class Routine(BaseModel):
