@@ -6,4 +6,4 @@ serviceAccountKey.json
 
 # Python cache
 __pycache__/
-*.pyc
+*.pyc.env

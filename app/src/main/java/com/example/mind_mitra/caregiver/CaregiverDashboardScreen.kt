@@ -27,15 +27,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
+import com.example.mind_mitra.data.ApiClient
+import com.example.mind_mitra.data.MemoryRequest
+import com.example.mind_mitra.data.RoutineRequest
 
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
@@ -1137,6 +1142,7 @@ private fun AddMemoryForm(
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var people by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1238,23 +1244,30 @@ private fun AddMemoryForm(
                                 onError("No patient connected.")
                             } else {
 
-                                FirebaseRepository.addMemory(
-                                    userId = patientId,
-                                    title = title.trim(),
-                                    description = description.trim(),
-                                    people = peopleList,
-
-                                    onSuccess = {
+                                // CHANGED: was FirebaseRepository.addMemory
+                                // (direct Firestore write). Now goes through
+                                // the backend, which verifies the caller's
+                                // Firebase ID token and confirms they're
+                                // actually this patient's linked caregiver
+                                // before writing anything.
+                                scope.launch {
+                                    try {
+                                        ApiClient.service.addMemory(
+                                            MemoryRequest(
+                                                user_id = patientId,
+                                                title = title.trim(),
+                                                description = description.trim(),
+                                                people = peopleList
+                                            )
+                                        )
                                         onSaved()
-                                    },
-
-                                    onError = {
+                                    } catch (e: Exception) {
                                         onError(
-                                            it.message
+                                            e.message
                                                 ?: "Failed to add memory."
                                         )
                                     }
-                                )
+                                }
                             }
                         },
 
@@ -1290,6 +1303,7 @@ private fun AddRoutineForm(
 
     var title by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1376,22 +1390,26 @@ private fun AddRoutineForm(
                                 onError("No patient connected.")
                             } else {
 
-                                FirebaseRepository.addSchedule(
-                                    userId = patientId,
-                                    title = title.trim(),
-                                    time = time.trim(),
-
-                                    onSuccess = {
+                                // CHANGED: was FirebaseRepository.addSchedule
+                                // (direct Firestore write). Now goes through
+                                // the backend's routine/ endpoint.
+                                scope.launch {
+                                    try {
+                                        ApiClient.service.addRoutine(
+                                            RoutineRequest(
+                                                user_id = patientId,
+                                                title = title.trim(),
+                                                time = time.trim()
+                                            )
+                                        )
                                         onSaved()
-                                    },
-
-                                    onError = {
+                                    } catch (e: Exception) {
                                         onError(
-                                            it.message
+                                            e.message
                                                 ?: "Failed to add routine."
                                         )
                                     }
-                                )
+                                }
                             }
                         },
 
@@ -1427,6 +1445,7 @@ private fun AddReminderForm(
 
     var title by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1513,22 +1532,28 @@ private fun AddReminderForm(
                                 onError("No patient connected.")
                             } else {
 
-                                FirebaseRepository.addReminder(
-                                    userId = patientId,
-                                    title = title.trim(),
-                                    time = time.trim(),
-
-                                    onSuccess = {
+                                // CHANGED: was FirebaseRepository.addReminder
+                                // (direct Firestore write). Reminders and
+                                // routines share the same backend endpoint,
+                                // same as they shared the same Firestore
+                                // collection before.
+                                scope.launch {
+                                    try {
+                                        ApiClient.service.addRoutine(
+                                            RoutineRequest(
+                                                user_id = patientId,
+                                                title = title.trim(),
+                                                time = time.trim()
+                                            )
+                                        )
                                         onSaved()
-                                    },
-
-                                    onError = {
+                                    } catch (e: Exception) {
                                         onError(
-                                            it.message
+                                            e.message
                                                 ?: "Failed to create reminder."
                                         )
                                     }
-                                )
+                                }
                             }
                         },
 

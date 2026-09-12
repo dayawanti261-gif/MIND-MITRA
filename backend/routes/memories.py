@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from models.schemas import Memory
 from services.firebase import db
+from services.auth import get_current_uid, assert_can_write
 
 router = APIRouter(
     prefix="/memories",
@@ -8,30 +9,37 @@ router = APIRouter(
 )
 
 
-# GET all memories
+# GET all memories across all users (admin/debug use)
 @router.get("/")
 def get_memories():
-    memories_ref = db.collection("memories").stream()
+    memories_ref = db.collection_group("memories").stream()
 
     memories = []
 
     for memory in memories_ref:
-        memories.append(memory.to_dict())
+        data = memory.to_dict()
+        data["id"] = memory.id
+        memories.append(data)
 
     return {
         "memories": memories
     }
 
+
+# GET all memories for one user
 @router.get("/user/{user_id}")
-def get_user_memories(user_id: str):
-    memories_ref = db.collection("memories").where(
-        "user_id", "==", user_id
-    ).stream()
+def get_user_memories(user_id: str, caller_uid: str = Depends(get_current_uid)):
+    assert_can_write(caller_uid, user_id)   # same check gates reads too
+
+    memories_ref = db.collection("users").document(user_id) \
+        .collection("memories").stream()
 
     memories = []
 
     for memory in memories_ref:
-        memories.append(memory.to_dict())
+        data = memory.to_dict()
+        data["id"] = memory.id
+        memories.append(data)
 
     return {
         "user_id": user_id,
@@ -40,9 +48,12 @@ def get_user_memories(user_id: str):
 
 
 # GET one memory
-@router.get("/{memory_id}")
-def get_memory(memory_id: str):
-    memory_ref = db.collection("memories").document(memory_id)
+@router.get("/{user_id}/{memory_id}")
+def get_memory(user_id: str, memory_id: str, caller_uid: str = Depends(get_current_uid)):
+    assert_can_write(caller_uid, user_id)
+
+    memory_ref = db.collection("users").document(user_id) \
+        .collection("memories").document(memory_id)
     memory = memory_ref.get()
 
     if not memory.exists:
@@ -50,19 +61,27 @@ def get_memory(memory_id: str):
             "message": "Memory not found"
         }
 
-    return memory.to_dict()
+    data = memory.to_dict()
+    data["id"] = memory.id
+    return data
 
 
 # CREATE a memory
 @router.post("/")
-def add_memory(memory: Memory):
-    memory_ref = db.collection("memories").document()
+def add_memory(memory: Memory, caller_uid: str = Depends(get_current_uid)):
+    # NEW: caller must be the patient themself or their linked caregiver.
+    assert_can_write(caller_uid, memory.user_id)
+
+    memory_ref = db.collection("users").document(memory.user_id) \
+        .collection("memories").document()
 
     memory_ref.set({
-        "user_id": memory.user_id,
+        "id": memory_ref.id,
         "title": memory.title,
+        "category": memory.category,
         "description": memory.description,
-        "photo_path": memory.photo_path
+        "imageUrl": memory.imageUrl or "",
+        "people": memory.people
     })
 
     return {

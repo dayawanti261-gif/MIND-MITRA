@@ -1,7 +1,11 @@
-package com.example.mind_mitra.user
+package com.example.mind_mitra.User
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
+import com.example.mind_mitra.data.MemoryItem
+import com.example.mind_mitra.data.ProgressStats
+import com.example.mind_mitra.data.RoutineItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
@@ -61,8 +66,6 @@ fun UserHomeScreen(userName: String) {
             .background(WarmWhite)
     ) {
 
-        // This area takes all space above the bottom navigation.
-        // This is the correct place to use weight.
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -75,88 +78,40 @@ fun UserHomeScreen(userName: String) {
 
                         0 -> HomeContent(
                             userName = userName,
-                            onOpenRoutine = {
-                                currentPage = "routine"
-                            },
-                            onOpenMemories = {
-                                currentPage = "memories"
-                            },
-                            onOpenMusic = {
-                                currentPage = "music"
-                            },
-                            onOpenTalk = {
-                                currentPage = "talk"
-                            },
-                            onOpenProgress = {
-                                currentPage = "progress"
-                            }
+                            onOpenRoutine = { currentPage = "routine" },
+                            onOpenMemories = { currentPage = "memories" },
+                            onOpenMusic = { currentPage = "music" },
+                            onOpenTalk = { currentPage = "talk" },
+                            onOpenProgress = { currentPage = "progress" }
                         )
 
                         1 -> GamesContent()
 
                         2 -> MemoryVaultScreen(
-                            onBack = {
-                                selectedTab = 0
-                            }
+                            onBack = { selectedTab = 0 }
                         )
 
                         3 -> MoreContent(
-                            onOpenRoutine = {
-                                currentPage = "routine"
-                            },
-                            onOpenMusic = {
-                                currentPage = "music"
-                            },
-                            onOpenTalk = {
-                                currentPage = "talk"
-                            },
-                            onOpenProgress = {
-                                currentPage = "progress"
-                            }
+                            onOpenRoutine = { currentPage = "routine" },
+                            onOpenMusic = { currentPage = "music" },
+                            onOpenTalk = { currentPage = "talk" },
+                            onOpenProgress = { currentPage = "progress" }
                         )
                     }
                 }
 
-                "routine" -> RoutineScreen(
-                    onBack = {
-                        currentPage = "main"
-                    }
-                )
-
-                "memories" -> MemoryVaultScreen(
-                    onBack = {
-                        currentPage = "main"
-                    }
-                )
-
-                "music" -> MusicRewardsScreen(
-                    onBack = {
-                        currentPage = "main"
-                    }
-                )
-
-                "talk" -> TalkScreen(
-                    onBack = {
-                        currentPage = "main"
-                    }
-                )
-
-                "progress" -> ProgressScreen(
-                    onBack = {
-                        currentPage = "main"
-                    }
-                )
+                "routine" -> RoutineScreen(onBack = { currentPage = "main" })
+                "memories" -> MemoryVaultScreen(onBack = { currentPage = "main" })
+                "music" -> MusicRewardsScreen(onBack = { currentPage = "main" })
+                "talk" -> TalkScreen(onBack = { currentPage = "main" })
+                "progress" -> ProgressScreen(onBack = { currentPage = "main" })
             }
         }
 
-        // Bottom navigation stays fixed.
         if (currentPage == "main") {
-
             BottomNavigation(
                 selectedTab = selectedTab,
-                onTabSelected = {
-                    selectedTab = it
-                }
+                onTabSelected = { selectedTab = it }
             )
         }
     }
@@ -181,10 +136,7 @@ private fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = 22.dp,
-                vertical = 24.dp
-            )
+            .padding(horizontal = 22.dp, vertical = 24.dp)
     ) {
 
         Text(
@@ -230,13 +182,11 @@ private fun HomeContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
             GameCard(
                 title = "Memory Matching",
                 subtitle = "Family photos",
                 modifier = Modifier.weight(1f)
             )
-
             GameCard(
                 title = "Pattern",
                 subtitle = "Train your focus",
@@ -246,33 +196,23 @@ private fun HomeContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        SchedulePreview(
-            onOpenRoutine = onOpenRoutine
-        )
+        SchedulePreview(onOpenRoutine = onOpenRoutine)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        MemoryCard(
-            onClick = onOpenMemories
-        )
+        MemoryCard(onClick = onOpenMemories)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        MusicCard(
-            onClick = onOpenMusic
-        )
+        MusicCard(onClick = onOpenMusic)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        TalkCard(
-            onClick = onOpenTalk
-        )
+        TalkCard(onClick = onOpenTalk)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        ProgressCard(
-            onClick = onOpenProgress
-        )
+        ProgressCard(onClick = onOpenProgress)
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -286,44 +226,46 @@ private fun HomeContent(
 @Composable
 private fun ReminderCard() {
 
+    var reminderId by remember { mutableStateOf("") }
     var reminderTitle by remember { mutableStateOf("") }
     var reminderTime by remember { mutableStateOf("") }
     var hasReminder by remember { mutableStateOf(false) }
 
     val userId = AuthRepository.getCurrentUserId()
 
-    LaunchedEffect(Unit) {
-        if (userId != null) {
-            FirebaseRepository.getReminders(
+    DisposableEffect(userId) {
+        val listener = if (userId != null) {
+            FirebaseRepository.listenToRoutines(
                 userId = userId,
-                onSuccess = { list ->
-                    val first = list.firstOrNull()
+                onUpdate = { list ->
+                    // Only ever show an incomplete item here — no fallback to a
+                    // completed one, or the card would never clear once everything
+                    // for today is done.
+                    val first = list.firstOrNull { !it.completed }
                     if (first != null) {
-                        reminderTitle = first["title"] as? String ?: ""
-                        reminderTime = first["time"] as? String ?: ""
+                        reminderId = first.id
+                        reminderTitle = first.title
+                        reminderTime = first.time
                         hasReminder = true
+                    } else {
+                        hasReminder = false
                     }
                 },
                 onError = { }
             )
-        }
+        } else null
+
+        onDispose { listener?.remove() }
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = SoftMint,
-                shape = RoundedCornerShape(20.dp)
-            )
+            .background(color = SoftMint, shape = RoundedCornerShape(20.dp))
             .padding(20.dp)
     ) {
 
-        Text(
-            text = "Next up",
-            fontSize = 14.sp,
-            color = SecondaryText
-        )
+        Text(text = "Next up", fontSize = 14.sp, color = SecondaryText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -338,25 +280,24 @@ private fun ReminderCard() {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text(
-                text = reminderTime,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
+            Text(text = reminderTime, fontSize = 14.sp, color = SecondaryText)
 
             Spacer(modifier = Modifier.height(14.dp))
 
             Button(
-                onClick = {},
+                onClick = {
+                    if (userId != null && reminderId.isNotEmpty()) {
+                        FirebaseRepository.toggleRoutineCompletion(
+                            userId = userId,
+                            routineId = reminderId,
+                            isCompleted = true
+                        )
+                    }
+                },
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DeepTeal
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
             ) {
-                Text(
-                    text = "Start Activity",
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text(text = "Done Activity", fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -376,27 +317,15 @@ private fun GameCard(
 
     Column(
         modifier = modifier
-            .background(
-                color = SoftCream,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftCream, shape = RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
 
-        Text(
-            text = title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        Text(
-            text = subtitle,
-            fontSize = 13.sp,
-            color = SecondaryText
-        )
+        Text(text = subtitle, fontSize = 13.sp, color = SecondaryText)
 
         Spacer(modifier = Modifier.height(14.dp))
 
@@ -405,7 +334,6 @@ private fun GameCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp)
         ) {
-
             Text("Play")
         }
     }
@@ -421,9 +349,26 @@ private fun SchedulePreview(
     onOpenRoutine: () -> Unit
 ) {
 
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    var scheduleList by remember { mutableStateOf<List<RoutineItem>>(emptyList()) }
+    var message by remember { mutableStateOf("") }
+
+    val userId = AuthRepository.getCurrentUserId()
+
+    DisposableEffect(userId) {
+        if (userId == null) {
+            message = "User session not found."
+            onDispose { }
+        } else {
+            val listener = FirebaseRepository.listenToRoutines(
+                userId = userId,
+                onUpdate = { scheduleList = it },
+                onError = { message = it.message ?: "Unable to load routine." }
+            )
+            onDispose { listener?.remove() }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -437,54 +382,36 @@ private fun SchedulePreview(
                 color = DarkText
             )
 
-            Spacer(
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
-            TextButton(
-                onClick = onOpenRoutine
-            ) {
-
-                Text(
-                    text = "View all",
-                    color = DeepTeal
-                )
+            TextButton(onClick = onOpenRoutine) {
+                Text(text = "View all", color = DeepTeal)
             }
         }
 
-        ScheduleItem("7:00 AM", "Wake up")
-
-        ScheduleItem(
-            "8:00 AM",
-            "Breakfast",
-            true
-        )
-
-        ScheduleItem(
-            "10:00 AM",
-            "Cognitive Activity"
-        )
-
-        ScheduleItem(
-            "1:00 PM",
-            "Lunch"
-        )
-
-        ScheduleItem(
-            "4:00 PM",
-            "Doctor Appointment"
-        )
-
-        ScheduleItem(
-            "7:30 PM",
-            "Dinner"
-        )
+        if (message.isNotEmpty()) {
+            Text(text = message, color = SecondaryText)
+        } else if (scheduleList.isEmpty()) {
+            Text(text = "No routine items added yet.", color = SecondaryText)
+        } else {
+            scheduleList.forEach { item ->
+                ScheduleItem(
+                    userId = userId,
+                    routineId = item.id,
+                    time = item.time,
+                    title = item.title,
+                    completed = item.completed
+                )
+            }
+        }
     }
 }
 
 
 @Composable
 private fun ScheduleItem(
+    userId: String?,
+    routineId: String,
     time: String,
     title: String,
     completed: Boolean = false
@@ -505,25 +432,22 @@ private fun ScheduleItem(
             color = DeepTeal
         )
 
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            color = DarkText
+        Text(text = title, fontSize = 16.sp, color = DarkText)
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Checkbox(
+            checked = completed,
+            onCheckedChange = { checked ->
+                if (userId != null) {
+                    FirebaseRepository.toggleRoutineCompletion(
+                        userId = userId,
+                        routineId = routineId,
+                        isCompleted = checked
+                    )
+                }
+            }
         )
-
-        Spacer(
-            modifier = Modifier.weight(1f)
-        )
-
-        if (completed) {
-
-            Text(
-                text = "Done",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeepTeal
-            )
-        }
     }
 }
 
@@ -533,26 +457,16 @@ private fun ScheduleItem(
 /* ================================================= */
 
 @Composable
-private fun MemoryCard(
-    onClick: () -> Unit
-) {
+private fun MemoryCard(onClick: () -> Unit) {
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = SoftMint,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftMint, shape = RoundedCornerShape(18.dp))
             .padding(18.dp)
     ) {
 
-        Text(
-            text = "Memory Vault",
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Memory Vault", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -569,7 +483,6 @@ private fun MemoryCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp)
         ) {
-
             Text("Open Memories")
         }
     }
@@ -581,26 +494,16 @@ private fun MemoryCard(
 /* ================================================= */
 
 @Composable
-private fun MusicCard(
-    onClick: () -> Unit
-) {
+private fun MusicCard(onClick: () -> Unit) {
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = SoftCream,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftCream, shape = RoundedCornerShape(18.dp))
             .padding(18.dp)
     ) {
 
-        Text(
-            text = "Music & Rewards",
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Music & Rewards", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -616,11 +519,8 @@ private fun MusicCard(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = DeepTeal
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
         ) {
-
             Text("Open Music & Rewards")
         }
     }
@@ -632,26 +532,16 @@ private fun MusicCard(
 /* ================================================= */
 
 @Composable
-private fun TalkCard(
-    onClick: () -> Unit
-) {
+private fun TalkCard(onClick: () -> Unit) {
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = SoftBlue,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftBlue, shape = RoundedCornerShape(18.dp))
             .padding(18.dp)
     ) {
 
-        Text(
-            text = "Talk to MIND MITRA",
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Talk to MIND MITRA", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -667,11 +557,8 @@ private fun TalkCard(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = DeepTeal
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
         ) {
-
             Text("Talk to MIND MITRA")
         }
     }
@@ -683,26 +570,16 @@ private fun TalkCard(
 /* ================================================= */
 
 @Composable
-private fun ProgressCard(
-    onClick: () -> Unit
-) {
+private fun ProgressCard(onClick: () -> Unit) {
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = SoftLavender,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftLavender, shape = RoundedCornerShape(18.dp))
             .padding(18.dp)
     ) {
 
-        Text(
-            text = "Progress & Rewards",
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Progress & Rewards", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -719,7 +596,6 @@ private fun ProgressCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp)
         ) {
-
             Text("View Progress")
         }
     }
@@ -740,12 +616,7 @@ private fun GamesContent() {
             .padding(22.dp)
     ) {
 
-        Text(
-            text = "Cognitive Games",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Cognitive Games", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -757,20 +628,9 @@ private fun GamesContent() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        LargeGameCard(
-            "Family Memory Matching",
-            "Match familiar family photographs."
-        )
-
-        LargeGameCard(
-            "Pattern Recognition",
-            "Find what comes next in the pattern."
-        )
-
-        LargeGameCard(
-            "Personal Memory Recall",
-            "Answer questions about meaningful memories."
-        )
+        LargeGameCard("Family Memory Matching", "Match familiar family photographs.")
+        LargeGameCard("Pattern Recognition", "Find what comes next in the pattern.")
+        LargeGameCard("Personal Memory Recall", "Answer questions about meaningful memories.")
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -787,36 +647,19 @@ private fun LargeGameCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 14.dp)
-            .background(
-                color = SoftMint,
-                shape = RoundedCornerShape(18.dp)
-            )
+            .background(color = SoftMint, shape = RoundedCornerShape(18.dp))
             .padding(18.dp)
     ) {
 
-        Text(
-            text = title,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        Text(
-            text = description,
-            fontSize = 14.sp,
-            color = SecondaryText
-        )
+        Text(text = description, fontSize = 14.sp, color = SecondaryText)
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        Text(
-            text = "Open Game →",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = DeepTeal
-        )
+        Text(text = "Open Game →", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
     }
 }
 
@@ -832,68 +675,47 @@ data class MemoryCategory(
 
 
 @Composable
-private fun MemoryVaultScreen(
-    onBack: () -> Unit
-) {
+private fun MemoryVaultScreen(onBack: () -> Unit) {
 
-    var memoryList by remember {
-        mutableStateOf<List<Map<String, Any>>>(emptyList())
-    }
-
+    var memoryList by remember { mutableStateOf<List<MemoryItem>>(emptyList()) }
     var message by remember { mutableStateOf("") }
 
     val userId = AuthRepository.getCurrentUserId()
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(userId) {
         if (userId == null) {
             message = "User session not found."
+            onDispose { }
         } else {
-            FirebaseRepository.getMemories(
+            val listener = FirebaseRepository.listenToMemories(
                 userId = userId,
-                onSuccess = { memoryList = it },
-                onError = {
-                    message = it.message ?: "Unable to load memories."
-                }
+                onUpdate = { memoryList = it },
+                onError = { message = it.message ?: "Unable to load memories." }
             )
+            onDispose { listener?.remove() }
         }
     }
 
     val categories = memoryList.map { memory ->
         MemoryCategory(
-            title = memory["title"] as? String ?: "Untitled",
-            description = memory["description"] as? String ?: ""
+            title = memory.title.ifEmpty { "Untitled" },
+            description = memory.description
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    horizontal = 22.dp,
-                    vertical = 8.dp
-                )
+                .padding(horizontal = 22.dp, vertical = 8.dp)
         ) {
 
-            TextButton(
-                onClick = onBack
-            ) {
-                Text(
-                    text = "← Back",
-                    color = DeepTeal,
-                    fontWeight = FontWeight.SemiBold
-                )
+            TextButton(onClick = onBack) {
+                Text(text = "← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
             }
 
-            Text(
-                text = "Memory Vault",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+            Text(text = "Memory Vault", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -906,16 +728,10 @@ private fun MemoryVaultScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             if (message.isNotEmpty()) {
-                Text(
-                    text = message,
-                    color = SecondaryText
-                )
+                Text(text = message, color = SecondaryText)
                 Spacer(modifier = Modifier.height(8.dp))
             } else if (categories.isEmpty()) {
-                Text(
-                    text = "No memories added yet.",
-                    color = SecondaryText
-                )
+                Text(text = "No memories added yet.", color = SecondaryText)
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
@@ -931,7 +747,6 @@ private fun MemoryVaultScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
             items(categories) { category ->
                 MemoryCategoryCard(category)
             }
@@ -941,28 +756,17 @@ private fun MemoryVaultScreen(
 
 
 @Composable
-private fun MemoryCategoryCard(
-    category: MemoryCategory
-) {
+private fun MemoryCategoryCard(category: MemoryCategory) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftMint)
     ) {
 
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
 
-            Text(
-                text = category.title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+            Text(text = category.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
             Spacer(modifier = Modifier.height(7.dp))
 
@@ -975,12 +779,7 @@ private fun MemoryCategoryCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = "View →",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeepTeal
-            )
+            Text(text = "View →", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = DeepTeal)
         }
     }
 }
@@ -991,29 +790,24 @@ private fun MemoryCategoryCard(
 /* ================================================= */
 
 @Composable
-private fun RoutineScreen(
-    onBack: () -> Unit
-) {
+private fun RoutineScreen(onBack: () -> Unit) {
 
-    var scheduleList by remember {
-        mutableStateOf<List<Map<String, Any>>>(emptyList())
-    }
-
+    var scheduleList by remember { mutableStateOf<List<RoutineItem>>(emptyList()) }
     var message by remember { mutableStateOf("") }
 
     val userId = AuthRepository.getCurrentUserId()
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(userId) {
         if (userId == null) {
             message = "User session not found."
+            onDispose { }
         } else {
-            FirebaseRepository.getSchedule(
+            val listener = FirebaseRepository.listenToRoutines(
                 userId = userId,
-                onSuccess = { scheduleList = it },
-                onError = {
-                    message = it.message ?: "Unable to load routine."
-                }
+                onUpdate = { scheduleList = it },
+                onError = { message = it.message ?: "Unable to load routine." }
             )
+            onDispose { listener?.remove() }
         }
     }
 
@@ -1024,22 +818,11 @@ private fun RoutineScreen(
             .padding(22.dp)
     ) {
 
-        TextButton(
-            onClick = onBack
-        ) {
-            Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
+        TextButton(onClick = onBack) {
+            Text(text = "← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
         }
 
-        Text(
-            text = "Daily Routine",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Daily Routine", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1052,27 +835,23 @@ private fun RoutineScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (scheduleList.isEmpty()) {
-            Text(
-                text = "No routine items added yet.",
-                color = SecondaryText
-            )
+            Text(text = "No routine items added yet.", color = SecondaryText)
         } else {
             scheduleList.forEach { item ->
                 RoutineCard(
-                    time = item["time"] as? String ?: "",
-                    title = item["title"] as? String ?: "",
+                    userId = userId,
+                    routineId = item.id,
+                    time = item.time,
+                    title = item.title,
                     description = "",
-                    completed = item["completed"] as? Boolean ?: false
+                    completed = item.completed
                 )
             }
         }
 
         if (message.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = message,
-                color = SecondaryText
-            )
+            Text(text = message, color = SecondaryText)
         }
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -1080,9 +859,10 @@ private fun RoutineScreen(
 }
 
 
-
 @Composable
 private fun RoutineCard(
+    userId: String?,
+    routineId: String,
     time: String,
     title: String,
     description: String,
@@ -1094,50 +874,51 @@ private fun RoutineCard(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftMint)
     ) {
 
-        Column(
-            modifier = Modifier.padding(18.dp)
+        Row(
+            modifier = Modifier.padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
 
-            Text(
-                text = time,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepTeal
-            )
+            Column(modifier = Modifier.weight(1f)) {
 
-            Spacer(modifier = Modifier.height(5.dp))
+                Text(text = time, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
 
-            Text(
-                text = title,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+                Spacer(modifier = Modifier.height(5.dp))
 
-            Spacer(modifier = Modifier.height(5.dp))
+                Text(text = title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
-            Text(
-                text = description,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
+                Spacer(modifier = Modifier.height(5.dp))
 
-            if (completed) {
+                Text(text = description, fontSize = 14.sp, color = SecondaryText)
 
-                Spacer(modifier = Modifier.height(8.dp))
+                if (completed) {
 
-                Text(
-                    text = "Completed",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DeepTeal
-                )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Completed",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeepTeal
+                    )
+                }
             }
+
+            Checkbox(
+                checked = completed,
+                onCheckedChange = { checked ->
+                    if (userId != null) {
+                        FirebaseRepository.toggleRoutineCompletion(
+                            userId = userId,
+                            routineId = routineId,
+                            isCompleted = checked
+                        )
+                    }
+                }
+            )
         }
     }
 }
@@ -1148,9 +929,7 @@ private fun RoutineCard(
 /* ================================================= */
 
 @Composable
-private fun MusicRewardsScreen(
-    onBack: () -> Unit
-) {
+private fun MusicRewardsScreen(onBack: () -> Unit) {
 
     Column(
         modifier = Modifier
@@ -1159,23 +938,11 @@ private fun MusicRewardsScreen(
             .padding(22.dp)
     ) {
 
-        TextButton(
-            onClick = onBack
-        ) {
-
-            Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
+        TextButton(onClick = onBack) {
+            Text(text = "← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
         }
 
-        Text(
-            text = "Music & Rewards",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Music & Rewards", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1187,41 +954,18 @@ private fun MusicRewardsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        MusicOption(
-            "Favourite Music",
-            "Music selected according to your preferences."
-        )
-
-        MusicOption(
-            "Calm Music",
-            "A gentle listening option for a quiet moment."
-        )
+        MusicOption("Favourite Music", "Music selected according to your preferences.")
+        MusicOption("Calm Music", "A gentle listening option for a quiet moment.")
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(
-            text = "Your Rewards",
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Your Rewards", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        RewardCard(
-            "Memory Explorer",
-            "Complete memory activities."
-        )
-
-        RewardCard(
-            "Focus Builder",
-            "Keep practicing cognitive activities."
-        )
-
-        RewardCard(
-            "Daily Routine",
-            "Complete your planned activities."
-        )
+        RewardCard("Memory Explorer", "Complete memory activities.")
+        RewardCard("Focus Builder", "Keep practicing cognitive activities.")
+        RewardCard("Daily Routine", "Complete your planned activities.")
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -1239,36 +983,20 @@ private fun MusicOption(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftCream
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftCream)
     ) {
 
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
+        Column(modifier = Modifier.padding(18.dp)) {
 
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
             Spacer(modifier = Modifier.height(5.dp))
 
-            Text(
-                text = description,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
+            Text(text = description, fontSize = 14.sp, color = SecondaryText)
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedButton(
-                onClick = {}
-            ) {
-
+            OutlinedButton(onClick = {}) {
                 Text("Play")
             }
         }
@@ -1287,37 +1015,20 @@ private fun RewardCard(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftGold
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftGold)
     ) {
 
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
+        Column(modifier = Modifier.padding(18.dp)) {
 
-            Text(
-                text = "Achievement",
-                fontSize = 13.sp,
-                color = SecondaryText
-            )
+            Text(text = "Achievement", fontSize = 13.sp, color = SecondaryText)
 
             Spacer(modifier = Modifier.height(5.dp))
 
-            Text(
-                text = title,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText
-            )
+            Text(text = title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
             Spacer(modifier = Modifier.height(5.dp))
 
-            Text(
-                text = description,
-                fontSize = 14.sp,
-                color = SecondaryText
-            )
+            Text(text = description, fontSize = 14.sp, color = SecondaryText)
         }
     }
 }
@@ -1328,9 +1039,7 @@ private fun RewardCard(
 /* ================================================= */
 
 @Composable
-private fun TalkScreen(
-    onBack: () -> Unit
-) {
+private fun TalkScreen(onBack: () -> Unit) {
 
     Column(
         modifier = Modifier
@@ -1344,22 +1053,12 @@ private fun TalkScreen(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth()
         ) {
-
-            Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(text = "← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Text(
-            text = "Talk to MIND MITRA",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Talk to MIND MITRA", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1374,9 +1073,7 @@ private fun TalkScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = SoftBlue
-            )
+            colors = CardDefaults.cardColors(containerColor = SoftBlue)
         ) {
 
             Column(
@@ -1386,12 +1083,7 @@ private fun TalkScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
 
-                Text(
-                    text = "Voice interaction",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText
-                )
+                Text(text = "Voice interaction", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1406,36 +1098,22 @@ private fun TalkScreen(
                 Button(
                     onClick = {},
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DeepTeal
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
                 ) {
-
-                    Text(
-                        text = "🎙  Tap to Talk",
-                        fontSize = 16.sp
-                    )
+                    Text(text = "🎙  Tap to Talk", fontSize = 16.sp)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Try asking:",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Try asking:", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(12.dp))
 
         SuggestionCard("Show me my daughter's photo")
-
         SuggestionCard("What is my next activity?")
-
         SuggestionCard("Recommend a game")
-
         SuggestionCard("Play my favourite music")
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -1444,20 +1122,15 @@ private fun TalkScreen(
 
 
 @Composable
-private fun SuggestionCard(
-    text: String
-) {
+private fun SuggestionCard(text: String) {
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftMint)
     ) {
-
         Text(
             text = text,
             modifier = Modifier.padding(16.dp),
@@ -1473,9 +1146,27 @@ private fun SuggestionCard(
 /* ================================================= */
 
 @Composable
-private fun ProgressScreen(
-    onBack: () -> Unit
-) {
+private fun ProgressScreen(onBack: () -> Unit) {
+
+    var stats by remember { mutableStateOf(ProgressStats()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    val userId = AuthRepository.getCurrentUserId()
+
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            FirebaseRepository.getProgressStats(
+                userId = userId,
+                onSuccess = {
+                    stats = it
+                    isLoading = false
+                },
+                onError = { isLoading = false }
+            )
+        } else {
+            isLoading = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1484,23 +1175,11 @@ private fun ProgressScreen(
             .padding(22.dp)
     ) {
 
-        TextButton(
-            onClick = onBack
-        ) {
-
-            Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
+        TextButton(onClick = onBack) {
+            Text(text = "← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
         }
 
-        Text(
-            text = "Progress & Rewards",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Progress & Rewards", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1512,53 +1191,28 @@ private fun ProgressScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        ProgressItem(
-            "Memory Game",
-            "82%"
-        )
+        if (isLoading) {
+            Text(text = "Loading...", color = SecondaryText)
+        } else {
 
-        ProgressItem(
-            "Pattern Game",
-            "74%"
-        )
+            ProgressItem("Memory Game", "${stats.memoryGame}%")
+            ProgressItem("Pattern Game", "${stats.patternGame}%")
+            ProgressItem("Recall Game", "${stats.recallGame}%")
 
-        ProgressItem(
-            "Recall Game",
-            "79%"
-        )
+            Spacer(modifier = Modifier.height(20.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        SummaryCard(
-            "Activities Completed",
-            "12"
-        )
-
-        SummaryCard(
-            "Routine Completion",
-            "85%"
-        )
+            SummaryCard("Activities Completed", "${stats.activitiesCompleted}")
+            SummaryCard("Routine Completion", "${stats.routineCompletion}%")
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(
-            text = "Milestones",
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "Milestones", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        RewardCard(
-            "Memory Explorer",
-            "Keep exploring meaningful memories."
-        )
-
-        RewardCard(
-            "Focus Builder",
-            "Keep practicing your activities."
-        )
+        RewardCard("Memory Explorer", "Keep exploring meaningful memories.")
+        RewardCard("Focus Builder", "Keep practicing your activities.")
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -1576,9 +1230,7 @@ private fun ProgressItem(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftMint)
     ) {
 
         Row(
@@ -1588,23 +1240,11 @@ private fun ProgressItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DarkText
-            )
+            Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = DarkText)
 
-            Spacer(
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepTeal
-            )
+            Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
         }
     }
 }
@@ -1621,9 +1261,7 @@ private fun SummaryCard(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftCream
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftCream)
     ) {
 
         Row(
@@ -1633,22 +1271,11 @@ private fun SummaryCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            Text(
-                text = title,
-                fontSize = 17.sp,
-                color = DarkText
-            )
+            Text(text = title, fontSize = 17.sp, color = DarkText)
 
-            Spacer(
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
-            Text(
-                text = value,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepTeal
-            )
+            Text(text = value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DeepTeal)
         }
     }
 }
@@ -1673,34 +1300,14 @@ private fun MoreContent(
             .padding(22.dp)
     ) {
 
-        Text(
-            text = "More",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
+        Text(text = "More", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = DarkText)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        MoreButton(
-            "Daily Routine",
-            onOpenRoutine
-        )
-
-        MoreButton(
-            "Music & Rewards",
-            onOpenMusic
-        )
-
-        MoreButton(
-            "Talk to MIND MITRA",
-            onOpenTalk
-        )
-
-        MoreButton(
-            "Progress",
-            onOpenProgress
-        )
+        MoreButton("Daily Routine", onOpenRoutine)
+        MoreButton("Music & Rewards", onOpenMusic)
+        MoreButton("Talk to MIND MITRA", onOpenTalk)
+        MoreButton("Progress", onOpenProgress)
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -1718,9 +1325,7 @@ private fun MoreButton(
             .fillMaxWidth()
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        colors = CardDefaults.cardColors(containerColor = SoftMint)
     ) {
 
         TextButton(
@@ -1729,7 +1334,6 @@ private fun MoreButton(
                 .fillMaxWidth()
                 .padding(4.dp)
         ) {
-
             Text(
                 text = title,
                 modifier = Modifier.fillMaxWidth(),
@@ -1752,28 +1356,16 @@ private fun BottomNavigation(
     onTabSelected: (Int) -> Unit
 ) {
 
-    val tabs = listOf(
-        "Home",
-        "Games",
-        "Memories",
-        "More"
-    )
+    val tabs = listOf("Home", "Games", "Memories", "More")
 
-    NavigationBar(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    NavigationBar(modifier = Modifier.fillMaxWidth()) {
 
         tabs.forEachIndexed { index, title ->
 
             NavigationBarItem(
                 selected = selectedTab == index,
-
-                onClick = {
-                    onTabSelected(index)
-                },
-
+                onClick = { onTabSelected(index) },
                 icon = {
-
                     Text(
                         text = when (index) {
                             0 -> "⌂"
@@ -1783,10 +1375,7 @@ private fun BottomNavigation(
                         }
                     )
                 },
-
-                label = {
-                    Text(title)
-                }
+                label = { Text(title) }
             )
         }
     }

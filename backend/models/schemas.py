@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -11,7 +12,12 @@ class Memory(BaseModel):
     user_id: str
     title: str
     description: str
-    photo_path: str | None = None
+    category: str = ""
+    # CHANGED: was "photo_path". The Android app's MemoryItem/FirebaseRepository
+    # reads/writes a field called "imageUrl", not "photo_path", so memories
+    # created here were invisible to the app. Renamed to match.
+    imageUrl: Optional[str] = None
+    people: list[str] = []
 
 
 class Routine(BaseModel):

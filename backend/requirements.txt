@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+firebase-admin
+supabase
+python-dotenv
+python-multipart
+requests
