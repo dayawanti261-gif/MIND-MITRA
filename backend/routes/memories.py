@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from models.schemas import Memory
 from services.firebase import db
+from services.photo_storage import get_signed_url
 
 router = APIRouter(
     prefix="/memories",
@@ -24,6 +25,7 @@ def get_memories():
 
 @router.get("/user/{user_id}")
 def get_user_memories(user_id: str):
+
     memories_ref = db.collection("memories").where(
         "user_id", "==", user_id
     ).stream()
@@ -31,7 +33,30 @@ def get_user_memories(user_id: str):
     memories = []
 
     for memory in memories_ref:
-        memories.append(memory.to_dict())
+        data = memory.to_dict()
+
+        photo_path = data.get("photo_path")
+        photo_url = None
+
+        if photo_path:
+            try:
+                signed_url_result = get_signed_url(photo_path)
+                photo_url = signed_url_result["signedURL"]
+            except Exception:
+                photo_url = None
+
+        memories.append({
+            "memory_id": memory.id,
+            "user_id": data.get("user_id"),
+            "title": data.get("title"),
+            "description": data.get("description"),
+            "category": data.get("category"),
+            "photo_path": photo_path,
+            "photo_url": photo_url,
+            "people": data.get("people"),
+            "place": data.get("place"),
+            "year": data.get("year")
+        })
 
     return {
         "user_id": user_id,

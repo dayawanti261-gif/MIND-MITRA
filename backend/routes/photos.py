@@ -10,8 +10,13 @@ def upload_photo_api(
         user_id: str = Form(...),
         file: UploadFile = File(...),
         title: str = Form(...),
-        description: str = Form(...)
+        description: str = Form(...),
+        people: str = Form(""),
+        place: str = Form(""),
+        year: int | None = Form(None),
+        category: str = Form("")
 ):
+
     allowed_types = ["image/jpeg", "image/png", "image/webp"]
 
     if file.content_type not in allowed_types:
@@ -40,7 +45,11 @@ def upload_photo_api(
         "user_id": user_id,
         "title": title,
         "description": description,
-        "photo_path": result["file_path"]
+        "category": category,
+        "photo_path": result["file_path"],
+        "people": people,
+        "place": place,
+        "year": year
     })
 
     return {

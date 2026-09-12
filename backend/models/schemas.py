@@ -11,7 +11,11 @@ class Memory(BaseModel):
     user_id: str
     title: str
     description: str
+    category: str | None = None
     photo_path: str | None = None
+    people: list[str] | None = None
+    place: str | None = None
+    year: int | None = None
 
 
 class Routine(BaseModel):

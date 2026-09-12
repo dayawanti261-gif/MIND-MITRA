@@ -1,5 +1,19 @@
 package com.example.mind_mitra.user
 
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.mind_mitra.network.MemoryData
+import com.example.mind_mitra.network.RetrofitClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +50,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 
 private val WarmWhite = Color(0xFFF9FBFA)
 private val DarkText = Color(0xFF183331)
@@ -809,33 +826,78 @@ private fun MemoryVaultScreen(
     onBack: () -> Unit
 ) {
 
-    val categories = listOf(
+    var memories by remember {
+        mutableStateOf<List<MemoryData>>(emptyList())
+    }
 
+    var photoUrls by remember {
+        mutableStateOf<Map<String, String>>(emptyMap())
+    }
+
+    var isLoading by remember {
+        mutableStateOf(true)
+    }
+
+    var errorMessage by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedCategory by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    LaunchedEffect(Unit) {
+        try {
+            val response =
+                RetrofitClient.apiService.getUserMemories("pink-user")
+
+            memories = response.memories
+
+            val urls = mutableMapOf<String, String>()
+
+            for (memory in response.memories) {
+                if (!memory.photo_path.isNullOrEmpty()) {
+                    try {
+                        val photoResponse =
+                            RetrofitClient.apiService.getPhotoUrl(memory.photo_path)
+
+                        urls[memory.memory_id] = photoResponse.signed_url
+                    } catch (e: Exception) {
+                        // Ignore failed photo URL
+                    }
+                }
+            }
+
+            photoUrls = urls
+            isLoading = false
+
+        } catch (e: Exception) {
+            errorMessage = e.message
+            isLoading = false
+        }
+    }
+
+    val categories = listOf(
         MemoryCategory(
             "Family",
             "Photos and memories of family members"
         ),
-
         MemoryCategory(
             "Childhood",
             "Special memories from earlier years"
         ),
-
         MemoryCategory(
             "Important Events",
             "Birthdays, celebrations and special occasions"
         ),
-
         MemoryCategory(
             "Places",
             "Meaningful places and old photographs"
         ),
-
         MemoryCategory(
             "People",
             "Important people and familiar faces"
         ),
-
         MemoryCategory(
             "Voice Messages",
             "Messages shared by family"
@@ -855,10 +917,7 @@ private fun MemoryVaultScreen(
                 )
         ) {
 
-            TextButton(
-                onClick = onBack
-            ) {
-
+            TextButton(onClick = onBack) {
                 Text(
                     text = "← Back",
                     color = DeepTeal,
@@ -884,21 +943,176 @@ private fun MemoryVaultScreen(
             Spacer(modifier = Modifier.height(14.dp))
         }
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 22.dp,
-                end = 22.dp,
-                bottom = 22.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        if (selectedCategory == null) {
 
-            items(categories) { category ->
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 22.dp,
+                    end = 22.dp,
+                    bottom = 22.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
 
-                MemoryCategoryCard(category)
+                items(categories) { category ->
+                    MemoryCategoryCard(
+                        category = category,
+                        onClick = {
+                            selectedCategory = category.title
+                        }
+                    )
+                }
+            }
+
+        } else {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 22.dp)
+            ) {
+
+                TextButton(
+                    onClick = {
+                        selectedCategory = null
+                    }
+                ) {
+                    Text(
+                        text = "← Back to Memory Vault",
+                        color = DeepTeal,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    text = selectedCategory!!,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DarkText
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val categoryMemories = memories.filter {
+                    it.category?.equals(
+                        selectedCategory,
+                        ignoreCase = true
+                    ) == true
+                }
+
+                if (categoryMemories.isEmpty()) {
+
+                    Text(
+                        text = "No memories found in this category.",
+                        fontSize = 16.sp,
+                        color = SecondaryText
+                    )
+
+                } else {
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(bottom = 100.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+
+                        items(categoryMemories) { memory ->
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+
+                                    val imageUrl =
+                                        memory.photo_url
+                                            ?: photoUrls[memory.memory_id]
+
+                                    if (!imageUrl.isNullOrEmpty()) {
+
+                                        AsyncImage(
+                                            model = imageUrl,
+                                            contentDescription = memory.title,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(180.dp),
+                                            contentScale = ContentScale.Crop
+                                        )
+
+                                        Spacer(
+                                            modifier = Modifier.height(12.dp)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = memory.title
+                                            ?: "Untitled Memory",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = DarkText
+                                    )
+
+                                    Spacer(
+                                        modifier = Modifier.height(6.dp)
+                                    )
+
+                                    Text(
+                                        text = memory.description ?: "",
+                                        fontSize = 14.sp,
+                                        color = SecondaryText
+                                    )
+
+                                    if (!memory.people.isNullOrEmpty()) {
+
+                                        Spacer(
+                                            modifier = Modifier.height(6.dp)
+                                        )
+
+                                        Text(
+                                            text = "People: ${memory.people}",
+                                            fontSize = 14.sp,
+                                            color = SecondaryText
+                                        )
+                                    }
+
+                                    if (!memory.place.isNullOrEmpty()) {
+
+                                        Spacer(
+                                            modifier = Modifier.height(4.dp)
+                                        )
+
+                                        Text(
+                                            text = "Place: ${memory.place}",
+                                            fontSize = 14.sp,
+                                            color = SecondaryText
+                                        )
+                                    }
+
+                                    if (memory.year != null) {
+
+                                        Spacer(
+                                            modifier = Modifier.height(4.dp)
+                                        )
+
+                                        Text(
+                                            text = "Year: ${memory.year}",
+                                            fontSize = 14.sp,
+                                            color = SecondaryText
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -907,11 +1121,14 @@ private fun MemoryVaultScreen(
 
 @Composable
 private fun MemoryCategoryCard(
-    category: MemoryCategory
+    category: MemoryCategory,
+    onClick: () -> Unit
 ) {
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = SoftMint
