@@ -26,7 +26,7 @@ import com.example.mind_mitra.auth.WelcomeScreen
 import com.example.mind_mitra.caregiver.CaregiverDashboardScreen
 import com.example.mind_mitra.caregiver.ConnectPatientScreen
 import com.example.mind_mitra.data.FirebaseRepository
-import com.example.mind_mitra.user.UserHomeScreen
+import com.example.mind_mitra.User.UserHomeScreen
 
 
 class MainActivity : ComponentActivity() {

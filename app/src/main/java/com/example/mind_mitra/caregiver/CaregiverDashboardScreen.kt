@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import java.util.Calendar
 
@@ -35,18 +34,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
+import com.example.mind_mitra.data.ApiClient
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
+import com.example.mind_mitra.data.MemoryRequest
+import com.example.mind_mitra.data.RoutineRequest
 import com.example.mind_mitra.reminder.ReminderReceiver
-
 
 private val DeepTeal = Color(0xFF146C68)
 private val WarmWhite = Color(0xFFF9FBFA)
@@ -1727,6 +1730,8 @@ private fun AddMemoryForm(
         mutableStateOf("")
     }
 
+    val scope = rememberCoroutineScope()
+
 
     Card(
         modifier =
@@ -1898,31 +1903,28 @@ private fun AddMemoryForm(
 
                             } else {
 
-                                FirebaseRepository.addMemory(
+                                scope.launch {
+                                    try {
 
-                                    userId = patientId,
+                                        ApiClient.service.addMemory(
+                                            MemoryRequest(
+                                                user_id = patientId,
+                                                title = title.trim(),
+                                                description = description.trim(),
+                                                people = peopleList
+                                            )
+                                        )
 
-                                    title =
-                                        title.trim(),
-
-                                    description =
-                                        description.trim(),
-
-                                    people =
-                                        peopleList,
-
-                                    onSuccess = {
                                         onSaved()
-                                    },
 
-                                    onError = {
+                                    } catch (e: Exception) {
 
                                         onError(
-                                            it.message
+                                            e.message
                                                 ?: "Failed to add memory."
                                         )
                                     }
-                                )
+                                }
                             }
                         },
 
@@ -1971,6 +1973,8 @@ private fun AddRoutineForm(
     var time by remember {
         mutableStateOf("")
     }
+
+    val scope = rememberCoroutineScope()
 
 
     Card(
@@ -2117,28 +2121,27 @@ private fun AddRoutineForm(
 
                             } else {
 
-                                FirebaseRepository.addSchedule(
+                                scope.launch {
+                                    try {
 
-                                    userId = patientId,
+                                        ApiClient.service.addRoutine(
+                                            RoutineRequest(
+                                                user_id = patientId,
+                                                title = title.trim(),
+                                                time = time.trim()
+                                            )
+                                        )
 
-                                    title =
-                                        title.trim(),
-
-                                    time =
-                                        time.trim(),
-
-                                    onSuccess = {
                                         onSaved()
-                                    },
 
-                                    onError = {
+                                    } catch (e: Exception) {
 
                                         onError(
-                                            it.message
+                                            e.message
                                                 ?: "Failed to add routine."
                                         )
                                     }
-                                )
+                                }
                             }
                         },
 
@@ -2336,6 +2339,11 @@ private fun AddReminderForm(
 
                             } else {
 
+                                // IMPORTANT:
+                                // Keep reminders on FirebaseRepository
+                                // because this also triggers the local
+                                // AlarmManager notification scheduling.
+
                                 FirebaseRepository.addReminder(
 
                                     userId = patientId,
@@ -2404,6 +2412,7 @@ private fun AddReminderForm(
 // =====================================================
 // REMINDER SCHEDULER
 // =====================================================
+
 private fun scheduleReminder(
     context: Context,
     title: String,
@@ -2456,7 +2465,6 @@ private fun scheduleReminder(
         val minute =
             hourMinute[1].toInt()
 
-        // Convert AM/PM to 24-hour format
         if (amPm == "PM" && hour != 12) {
             hour += 12
         }
@@ -2476,7 +2484,6 @@ private fun scheduleReminder(
             return
         }
 
-        // Create alarm time
         val calendar =
             Calendar.getInstance().apply {
 
@@ -2500,8 +2507,6 @@ private fun scheduleReminder(
                     0
                 )
 
-                // If today's time has already passed,
-                // schedule it for tomorrow
                 if (
                     timeInMillis <=
                     System.currentTimeMillis()
@@ -2518,7 +2523,6 @@ private fun scheduleReminder(
             "Alarm scheduled for: ${calendar.time}"
         )
 
-        // Send reminder information to Receiver
         val intent =
             Intent(
                 context,
@@ -2530,9 +2534,6 @@ private fun scheduleReminder(
                     title
                 )
 
-                // IMPORTANT:
-                // Receiver needs these to schedule
-                // the reminder again tomorrow.
                 putExtra(
                     "hour",
                     hour
@@ -2589,6 +2590,7 @@ private fun scheduleReminder(
         )
     }
 }
+
 
 // =====================================================
 // HOME TAB
@@ -2729,10 +2731,6 @@ private fun CaregiverHomeTab(
     )
 
 
-    // =====================================================
-    // TODAY'S REMINDERS
-    // =====================================================
-
     Text(
         "Today's Reminders",
         fontSize = 20.sp,
@@ -2845,10 +2843,6 @@ private fun CaregiverHomeTab(
     )
 
 
-    // =====================================================
-    // QUICK ACTIONS
-    // =====================================================
-
     Text(
         "Quick Actions",
         fontSize = 20.sp,
@@ -2902,10 +2896,6 @@ private fun CaregiverHomeTab(
             Modifier.height(26.dp)
     )
 
-
-    // =====================================================
-    // WEEKLY OVERVIEW
-    // =====================================================
 
     Text(
         "Weekly Overview",
