@@ -12,6 +12,9 @@ data class RoutineItem(
     val id: String = "",
     val title: String = "",
     val time: String = "",
+    val daysOfWeek: String = "Every day",
+    val enabled: Boolean = true,
+    val reminderNote: String = "",
     // Date (yyyy-MM-dd) the activity was last marked done, or null if never.
     // "completed" is derived from this instead of being stored directly, so
     // the activity automatically counts as not-done again once the date
@@ -56,11 +59,11 @@ data class MemoryItem(
 }
 
 data class ProgressStats(
-    val memoryGame: Int = 82,
-    val patternGame: Int = 74,
-    val recallGame: Int = 79,
-    val activitiesCompleted: Int = 12,
-    val routineCompletion: Int = 85
+    val memoryGame: Int = 0,
+    val patternGame: Int = 0,
+    val recallGame: Int = 0,
+    val activitiesCompleted: Int = 0,
+    val routineCompletion: Int = 0
 ) {
     operator fun get(key: String): Any? = when (key) {
         "memoryGame" -> memoryGame
@@ -92,7 +95,7 @@ object FirebaseRepository {
             "uid" to userId,
             "name" to name,
             "language" to language,
-            "email" to email,
+            "email" to email.trim().lowercase(),
             "connectionPin" to connectionPin,
             "role" to "User"
         )
@@ -113,7 +116,7 @@ object FirebaseRepository {
         val profile = mapOf(
             "uid" to userId,
             "name" to name,
-            "email" to email,
+            "email" to email.trim().lowercase(),
             "role" to "Caregiver"
         )
         db.collection("users").document(userId)
@@ -290,12 +293,32 @@ object FirebaseRepository {
         onSuccess: (List<Map<String, Any>>) -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
+        getConnectedPatientRoutines(caregiverId, onSuccess, onError)
+    }
+
+    fun getConnectedPatientRoutines(
+        caregiverId: String,
+        onSuccess: (List<Map<String, Any>>) -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ) {
         withLinkedPatient(
             caregiverId = caregiverId,
             onNoPatient = { onSuccess(emptyList()) },
             onError = onError
         ) { patientId ->
-            getReminders(userId = patientId, onSuccess = onSuccess, onError = onError)
+            db.collection("users").document(patientId)
+                .collection("routines")
+                .orderBy("timestamp")
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    val list = snapshot.documents.mapNotNull { doc ->
+                        val data = doc.data?.toMutableMap() ?: mutableMapOf()
+                        data["id"] = doc.id
+                        data
+                    }
+                    onSuccess(list)
+                }
+                .addOnFailureListener { onError(it) }
         }
     }
 
@@ -304,7 +327,13 @@ object FirebaseRepository {
         onSuccess: (List<Map<String, Any>>) -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
-        getConnectedPatientSchedule(caregiverId, onSuccess, onError)
+        withLinkedPatient(
+            caregiverId = caregiverId,
+            onNoPatient = { onSuccess(emptyList()) },
+            onError = onError
+        ) { patientId ->
+            getReminders(userId = patientId, onSuccess = onSuccess, onError = onError)
+        }
     }
 
     fun addSchedule(
@@ -321,10 +350,29 @@ object FirebaseRepository {
         userId: String,
         title: String,
         time: String,
+        description: String = "",
+        date: String = "",
+        repeat: String = "none",
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
-        addRoutineItem(userId = userId, title = title, time = time, onSuccess = onSuccess, onError = onError)
+        if (userId.isEmpty()) return
+        val docRef = db.collection("users").document(userId).collection("reminders").document()
+        val item = mapOf(
+            "id" to docRef.id,
+            "title" to title,
+            "description" to description,
+            "date" to date,
+            "time" to time,
+            "repeat" to repeat,
+            "enabled" to true,
+            "createdBy" to (AuthRepository.getCurrentUserId() ?: ""),
+            "lastCompletedDate" to null,
+            "timestamp" to System.currentTimeMillis()
+        )
+        docRef.set(item)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
     }
 
     fun getConnectedPatientProgress(
@@ -366,12 +414,30 @@ object FirebaseRepository {
             .addOnFailureListener { onError(it) }
     }
 
+    fun listenToPreferences(
+        userId: String,
+        onUpdate: (Map<String, Any>?) -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration? {
+        if (userId.isEmpty()) return null
+        return db.collection("users").document(userId)
+            .collection("preferences").document("settings")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
+                }
+                onUpdate(snapshot?.data)
+            }
+    }
+
     fun savePreferences(
         userId: String,
         favouriteMusic: String,
         favouriteActivities: String,
         favouriteMemories: String,
         language: String,
+        musicPreferences: List<MusicPreferenceItem> = emptyList(),
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
@@ -379,7 +445,8 @@ object FirebaseRepository {
             "favouriteMusic" to favouriteMusic,
             "favouriteActivities" to favouriteActivities,
             "favouriteMemories" to favouriteMemories,
-            "language" to language
+            "language" to language,
+            "musicPreferences" to musicPreferences.map { it.toMap() }
         )
         db.collection("users").document(userId)
             .collection("preferences").document("settings")
@@ -400,7 +467,7 @@ object FirebaseRepository {
             return
         }
         db.collection("users").document(userId)
-            .collection("routines")
+            .collection("reminders")
             .orderBy("timestamp")
             .get()
             .addOnSuccessListener { snapshot ->
@@ -413,6 +480,37 @@ object FirebaseRepository {
                 onSuccess(list)
             }
             .addOnFailureListener { onError(it) }
+    }
+
+    fun listenToReminders(
+        userId: String = AuthRepository.getCurrentUserId() ?: "",
+        onUpdate: (List<ReminderItem>) -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration? {
+        if (userId.isEmpty()) return null
+        return db.collection("users").document(userId)
+            .collection("reminders")
+            .orderBy("timestamp")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
+                }
+                val reminders = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data ?: return@mapNotNull null
+                    ReminderItem(
+                        id = doc.id,
+                        title = data["title"] as? String ?: "",
+                        description = data["description"] as? String ?: "",
+                        date = data["date"] as? String ?: "",
+                        time = data["time"] as? String ?: "",
+                        repeat = data["repeat"] as? String ?: "none",
+                        enabled = data["enabled"] as? Boolean ?: true,
+                        lastCompletedDate = data["lastCompletedDate"] as? String
+                    )
+                } ?: emptyList()
+                onUpdate(reminders)
+            }
     }
 
     fun getSchedule(
@@ -439,11 +537,44 @@ object FirebaseRepository {
                 }
 
                 val routines = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(RoutineItem::class.java)?.copy(id = doc.id)
+                    val data = doc.data
+                    if (data != null) {
+                        RoutineItem(
+                            id = doc.id,
+                            title = data["title"] as? String ?: "",
+                            time = data["time"] as? String ?: "",
+                            daysOfWeek = data["daysOfWeek"] as? String
+                                ?: data["days_of_week"] as? String
+                                ?: "Every day",
+                            enabled = data["enabled"] as? Boolean ?: true,
+                            reminderNote = data["reminderNote"] as? String
+                                ?: data["reminder_note"] as? String
+                                ?: "",
+                            lastCompletedDate = data["lastCompletedDate"] as? String,
+                            timestamp = (data["timestamp"] as? Number)?.toLong()
+                                ?: System.currentTimeMillis()
+                        )
+                    } else {
+                        doc.toObject(RoutineItem::class.java)?.copy(id = doc.id)
+                    }
                 } ?: emptyList()
 
                 onUpdate(routines)
             }
+    }
+
+    fun markReminderComplete(
+        userId: String = AuthRepository.getCurrentUserId() ?: "",
+        reminderId: String,
+        onSuccess: () -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ) {
+        if (userId.isEmpty()) return
+        db.collection("users").document(userId)
+            .collection("reminders").document(reminderId)
+            .update("lastCompletedDate", todayDateString())
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
     }
 
     fun toggleRoutineCompletion(
@@ -465,6 +596,9 @@ object FirebaseRepository {
         userId: String = AuthRepository.getCurrentUserId() ?: "",
         title: String,
         time: String,
+        daysOfWeek: String = "Every day",
+        enabled: Boolean = true,
+        reminderNote: String = "",
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
     ) {
@@ -474,6 +608,9 @@ object FirebaseRepository {
             id = docRef.id,
             title = title,
             time = time,
+            daysOfWeek = daysOfWeek,
+            enabled = enabled,
+            reminderNote = reminderNote,
             lastCompletedDate = null,
             timestamp = System.currentTimeMillis()
         )
@@ -522,7 +659,20 @@ object FirebaseRepository {
                 }
 
                 val memories = snapshot?.documents?.mapNotNull { doc ->
-                    doc.toObject(MemoryItem::class.java)?.copy(id = doc.id)
+                    val data = doc.data
+                    if (data != null) {
+                        MemoryItem(
+                            id = doc.id,
+                            title = data["title"] as? String ?: "",
+                            category = data["category"] as? String ?: "",
+                            description = data["description"] as? String ?: "",
+                            photo_path = data["photo_path"] as? String ?: "",
+                            people = (data["people"] as? List<*>)?.mapNotNull { it as? String }
+                                ?: emptyList()
+                        )
+                    } else {
+                        doc.toObject(MemoryItem::class.java)?.copy(id = doc.id)
+                    }
                 } ?: emptyList()
 
                 onUpdate(memories)

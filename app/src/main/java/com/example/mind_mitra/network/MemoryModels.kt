@@ -47,6 +47,11 @@ class PeopleListDeserializer : JsonDeserializer<List<String>?> {
     }
 }
 
+data class DeleteMemoryResponse(
+    val message: String?,
+    val memory_id: String?
+)
+
 data class MemoryRequest(
     val user_id: String,
     val title: String,
@@ -61,7 +66,10 @@ data class MemoryRequest(
 data class RoutineRequest(
     val user_id: String,
     val title: String,
-    val time: String
+    val time: String,
+    val days_of_week: String = "Every day",
+    val enabled: Boolean = true,
+    val reminder_note: String? = null
 )
 
 data class PhotoUrlResponse(

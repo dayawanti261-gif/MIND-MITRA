@@ -30,3 +30,14 @@ def get_signed_url(file_path: str):
     )
 
     return response
+
+
+def delete_photo(file_path: str) -> bool:
+    """Delete a stored photo. Returns True if deleted or already absent."""
+    if not file_path:
+        return True
+    try:
+        supabase.storage.from_(BUCKET_NAME).remove([file_path])
+        return True
+    except Exception:
+        return False

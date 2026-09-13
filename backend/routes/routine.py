@@ -69,6 +69,9 @@ def add_routine(routine: Routine, caller_uid: str = Depends(get_current_uid)):
         "id": routine_ref.id,
         "title": routine.title,
         "time": routine.time,
+        "daysOfWeek": routine.days_of_week,
+        "enabled": routine.enabled,
+        "reminderNote": routine.reminder_note or "",
         # Date (yyyy-MM-dd) the activity was last completed, or None.
         # The Android app derives "completed" from whether this equals
         # today's date, so activities automatically reset each day.

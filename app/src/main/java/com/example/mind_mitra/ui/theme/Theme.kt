@@ -36,8 +36,11 @@ fun MINDMITRATheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    // Keep the plant/health palette consistent for elderly-friendly contrast.
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme.copy(
+        onBackground = Color.Black,
+        onSurface = Color.Black,
+        outline = Color.Black
+    )
 
     MaterialTheme(
         colorScheme = colorScheme,

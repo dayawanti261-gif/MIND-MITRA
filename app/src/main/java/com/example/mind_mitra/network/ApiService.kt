@@ -3,6 +3,7 @@ package com.example.mind_mitra.network
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.POST
@@ -24,6 +25,12 @@ interface ApiService {
     suspend fun addMemory(
         @Body body: MemoryRequest
     )
+
+    @DELETE("memories/{user_id}/{memory_id}")
+    suspend fun deleteMemory(
+        @Path("user_id") userId: String,
+        @Path("memory_id") memoryId: String
+    ): DeleteMemoryResponse
 
     @POST("routine/")
     suspend fun addRoutine(
@@ -59,6 +66,26 @@ interface ApiService {
     @POST("games/progress")
     suspend fun saveGameProgress(
         @Body body: GameProgressRequest
+    )
+
+    @POST("games/difficulty")
+    suspend fun recommendDifficulty(
+        @Body body: DifficultyRequest
+    ): DifficultyResponse
+
+    @POST("users/link-patient")
+    suspend fun linkPatient(
+        @Body body: LinkPatientRequest
+    ): LinkPatientResponse
+
+    @GET("reminders/user/{user_id}")
+    suspend fun getUserReminders(
+        @Path("user_id") userId: String
+    ): ReminderResponse
+
+    @POST("reminders/")
+    suspend fun addReminder(
+        @Body body: ReminderRequest
     )
 
     @POST("api/agent/chat")

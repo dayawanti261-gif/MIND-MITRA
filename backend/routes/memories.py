@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 from models.schemas import Memory
 from services.firebase import db
 from services.auth import get_current_uid, assert_can_write
-from services.photo_storage import get_signed_url
+from services.photo_storage import get_signed_url, delete_photo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/memories",
@@ -112,4 +116,40 @@ def add_memory(memory: Memory, caller_uid: str = Depends(get_current_uid)):
     return {
         "message": "Memory added successfully!",
         "memory": memory.model_dump()
+    }
+
+
+# DELETE a memory (and associated photo when present)
+@router.delete("/{user_id}/{memory_id}")
+def delete_memory(
+    user_id: str,
+    memory_id: str,
+    caller_uid: str = Depends(get_current_uid),
+):
+    assert_can_write(caller_uid, user_id)
+
+    memory_ref = db.collection("users").document(user_id) \
+        .collection("memories").document(memory_id)
+    memory = memory_ref.get()
+
+    if not memory.exists:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    data = memory.to_dict() or {}
+    photo_path = data.get("photo_path")
+
+    if photo_path:
+        deleted = delete_photo(photo_path)
+        if not deleted:
+            logger.warning(
+                "Photo deletion failed for memory %s path %s",
+                memory_id,
+                photo_path,
+            )
+
+    memory_ref.delete()
+
+    return {
+        "message": "Memory deleted successfully",
+        "memory_id": memory_id,
     }

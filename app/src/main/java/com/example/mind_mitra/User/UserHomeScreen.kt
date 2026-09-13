@@ -1,17 +1,29 @@
 package com.example.mind_mitra.user
 
 import com.example.mind_mitra.data.AuthRepository
+import com.example.mind_mitra.data.ReminderItem
 import com.example.mind_mitra.data.RoutineItem
+import com.example.mind_mitra.games.CognitiveGameScreen
+import com.example.mind_mitra.games.GameType
+import com.example.mind_mitra.games.GamesHubScreen
+import com.example.mind_mitra.games.ProgressRewardsScreen
+import com.example.mind_mitra.music.MusicScreen
+import com.example.mind_mitra.locale.LocaleHelper
+import com.example.mind_mitra.memory.MemoryVaultCategoriesScreen
 import com.example.mind_mitra.notifications.RequestNotificationPermissionIfNeeded
 import com.example.mind_mitra.notifications.ReminderScheduler
 import com.example.mind_mitra.network.AgentChatRequest
+import androidx.compose.ui.res.stringResource
+import com.example.mind_mitra.R
 import android.util.Log
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -64,8 +76,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 
 private val WarmWhite = Color(0xFFF9FBFA)
-private val DarkText = Color(0xFF183331)
-private val SecondaryText = Color(0xFF61716F)
+private val DarkText = Color.Black
+private val SecondaryText = Color.Black
 private val DeepTeal = Color(0xFF146C68)
 private val SoftMint = Color(0xFFE8F5F2)
 private val SoftCream = Color(0xFFF4F0E7)
@@ -76,17 +88,12 @@ private val SoftLavender = Color(0xFFEDE8F5)
 @Composable
 fun UserHomeScreen(
     userName: String,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onChangeLanguage: () -> Unit = {}
 ) {
     val viewModel: UserHomeViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-
-    LaunchedEffect(uiState.routines) {
-        if (uiState.routines.isNotEmpty()) {
-            ReminderScheduler.scheduleRoutineReminders(context, uiState.routines)
-        }
-    }
 
     val displayName = userName.ifBlank { uiState.userName.ifBlank { "Friend" } }
 
@@ -94,6 +101,28 @@ fun UserHomeScreen(
 
     var selectedTab by remember { mutableStateOf(0) }
     var currentPage by remember { mutableStateOf("main") }
+
+    LaunchedEffect(uiState.reminders) {
+        if (uiState.reminders.isNotEmpty() && AuthRepository.getCurrentUserId() != null) {
+            viewModel.scheduleAlarms(context)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.ensureDataLoaded()
+        viewModel.loadCachedRoutines(context)
+    }
+
+    LaunchedEffect(uiState.routines) {
+        viewModel.cacheRoutines(context)
+    }
+
+    LaunchedEffect(currentPage) {
+        if (currentPage == "main" || currentPage == "routine") {
+            viewModel.refreshRoutines()
+        }
+    }
+    var selectedGame by remember { mutableStateOf<GameType?>(null) }
 
     Column(
         modifier = Modifier
@@ -116,6 +145,8 @@ fun UserHomeScreen(
                         0 -> HomeContent(
                             userName = displayName,
                             routines = uiState.routines,
+                            reminders = uiState.reminders,
+                            isOffline = uiState.isOffline,
                             progressStats = uiState.progressStats,
                             onOpenGames = { selectedTab = 1 },
                             onOpenRoutine = {
@@ -135,17 +166,17 @@ fun UserHomeScreen(
                             }
                         )
 
-                        1 -> GamesContent(
-                            onPlayMatching = { currentPage = "matching_game" }
-                        )
-
-                        2 -> MemoryVaultScreen(
-                            onBack = {
-                                selectedTab = 0
+                        1 -> GamesHubScreen(
+                            onPlayGame = { game ->
+                                selectedGame = game
+                                currentPage = "cognitive_game"
                             }
                         )
 
+                        2 -> MemoryVaultCategoriesScreen()
+
                         3 -> MoreContent(
+                            onChangeLanguage = onChangeLanguage,
                             onOpenRoutine = {
                                 currentPage = "routine"
                             },
@@ -165,6 +196,8 @@ fun UserHomeScreen(
 
                 "routine" -> RoutineScreen(
                     routines = uiState.routines,
+                    isLoading = uiState.isLoading,
+                    isOffline = uiState.isOffline,
                     onToggleRoutine = { id, completed ->
                         viewModel.toggleRoutine(id, completed)
                     },
@@ -173,17 +206,28 @@ fun UserHomeScreen(
                     }
                 )
 
-                "matching_game" -> FamilyMemoryMatchingScreen(
-                    onBack = { currentPage = "main"; selectedTab = 1 }
-                )
-
-                "memories" -> MemoryVaultScreen(
-                    onBack = {
-                        currentPage = "main"
+                "cognitive_game" -> {
+                    val game = selectedGame
+                    if (game != null) {
+                        CognitiveGameScreen(
+                            gameType = game,
+                            onBack = { currentPage = "main"; selectedTab = 1 }
+                        )
+                    } else {
+                        GamesHubScreen(
+                            onPlayGame = { g ->
+                                selectedGame = g
+                                currentPage = "cognitive_game"
+                            }
+                        )
                     }
+                }
+
+                "memories" -> MemoryVaultCategoriesScreen(
+                    onBack = { currentPage = "main" }
                 )
 
-                "music" -> MusicRewardsScreen(
+                "music" -> MusicScreen(
                     onBack = {
                         currentPage = "main"
                     }
@@ -195,11 +239,8 @@ fun UserHomeScreen(
                     }
                 )
 
-                "progress" -> ProgressScreen(
-                    stats = uiState.progressStats,
-                    onBack = {
-                        currentPage = "main"
-                    }
+                "progress" -> ProgressRewardsScreen(
+                    onBack = { currentPage = "main" }
                 )
             }
         }
@@ -226,6 +267,8 @@ fun UserHomeScreen(
 private fun HomeContent(
     userName: String,
     routines: List<RoutineItem>,
+    reminders: List<ReminderItem>,
+    isOffline: Boolean,
     progressStats: com.example.mind_mitra.data.ProgressStats,
     onOpenGames: () -> Unit,
     onOpenRoutine: () -> Unit,
@@ -234,7 +277,12 @@ private fun HomeContent(
     onOpenTalk: () -> Unit,
     onOpenProgress: () -> Unit
 ) {
-    val nextRoutine = routines.firstOrNull { !it.completed }
+    val today = com.example.mind_mitra.data.todayDateString()
+    val todaysReminders = reminders.filter {
+        it.enabled && !it.completedToday &&
+            (it.date.isBlank() || it.date == today)
+    }
+    val nextReminder = todaysReminders.firstOrNull()
 
     Column(
         modifier = Modifier
@@ -247,97 +295,105 @@ private fun HomeContent(
     ) {
 
         Text(
-            text = "Good morning, $userName",
-            fontSize = 28.sp,
+            text = "${stringResource(R.string.good_morning)}, $userName",
+            fontSize = 30.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Let's make today a good day.",
-            fontSize = 16.sp,
-            color = SecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "TODAY'S REMINDER",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = DeepTeal
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ReminderCard(
-            title = nextRoutine?.title ?: "No upcoming activities",
-            time = nextRoutine?.time ?: "Check your routine",
-            onOpenRoutine = onOpenRoutine
-        )
+        if (isOffline) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.offline_message),
+                fontSize = 18.sp,
+                color = DarkText,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Recommended for you",
-            fontSize = 20.sp,
+            text = stringResource(R.string.todays_reminders),
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-
-            GameCard(
-                title = "Memory Matching",
-                subtitle = "Family photos",
-                modifier = Modifier.weight(1f),
-                onPlay = onOpenGames
+        if (todaysReminders.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_reminders_today),
+                fontSize = 18.sp,
+                color = DarkText
             )
-
-            GameCard(
-                title = "Pattern",
-                subtitle = "Train your focus",
-                modifier = Modifier.weight(1f)
-            )
+        } else {
+            todaysReminders.take(3).forEach { reminder ->
+                ReminderCard(
+                    title = reminder.title,
+                    time = reminder.time,
+                    onOpenRoutine = onOpenRoutine
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        SchedulePreview(
-            routines = routines,
-            onOpenRoutine = onOpenRoutine
+        Text(
+            text = stringResource(R.string.todays_routine),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        MemoryCard(
-            onClick = onOpenMemories
-        )
+        val activeRoutines = routines.filter { it.enabled }
+        if (activeRoutines.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_routines_title),
+                fontSize = 18.sp,
+                color = DarkText
+            )
+        } else {
+            activeRoutines.take(5).forEach { routine ->
+                RoutinePreviewRow(
+                    time = routine.time,
+                    title = routine.title,
+                    daysOfWeek = routine.daysOfWeek,
+                    onOpenRoutine = onOpenRoutine
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        MusicCard(
-            onClick = onOpenMusic
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        TalkCard(
+        com.example.mind_mitra.ui.components.MindPrimaryButton(
+            text = stringResource(R.string.talk_to_saathi),
             onClick = onOpenTalk
         )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        ProgressCard(
-            summary = "Memory ${progressStats.memoryGame}% • Routine ${progressStats.routineCompletion}%",
+        Spacer(modifier = Modifier.height(12.dp))
+        com.example.mind_mitra.ui.components.MindSecondaryButton(
+            text = stringResource(R.string.memory_vault_button),
+            onClick = onOpenMemories
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        com.example.mind_mitra.ui.components.MindSecondaryButton(
+            text = stringResource(R.string.games_button),
+            onClick = onOpenGames
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        com.example.mind_mitra.ui.components.MindSecondaryButton(
+            text = stringResource(R.string.progress_button),
             onClick = onOpenProgress
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        com.example.mind_mitra.ui.components.MindSecondaryButton(
+            text = stringResource(R.string.music_button),
+            onClick = onOpenMusic
         )
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -348,6 +404,47 @@ private fun HomeContent(
 /* ================================================= */
 /* REMINDER */
 /* ================================================= */
+
+@Composable
+private fun RoutinePreviewRow(
+    time: String,
+    title: String,
+    daysOfWeek: String,
+    onOpenRoutine: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = SoftMint,
+                shape = RoundedCornerShape(20.dp)
+            )
+            .clickable { onOpenRoutine() }
+            .padding(20.dp)
+    ) {
+        Text(
+            text = time,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            fontSize = 21.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+        if (daysOfWeek.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = daysOfWeek,
+                fontSize = 16.sp,
+                color = DarkText
+            )
+        }
+    }
+}
 
 @Composable
 private fun ReminderCard(
@@ -367,7 +464,7 @@ private fun ReminderCard(
     ) {
 
         Text(
-            text = "Next up",
+            text = stringResource(R.string.next_up),
             fontSize = 14.sp,
             color = SecondaryText
         )
@@ -401,7 +498,7 @@ private fun ReminderCard(
         ) {
 
             Text(
-                text = "View Routine",
+                text = stringResource(R.string.view_routine),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp
             )
@@ -1266,57 +1363,49 @@ private fun MemoryCategoryCard(
 @Composable
 private fun RoutineScreen(
     routines: List<RoutineItem>,
+    isLoading: Boolean,
+    isOffline: Boolean,
     onToggleRoutine: (String, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
+    com.example.mind_mitra.ui.components.MindScreen(onBack = onBack) {
+        com.example.mind_mitra.ui.components.MindSectionHeader(
+            title = stringResource(R.string.daily_routine),
+            subtitle = stringResource(R.string.routine_subtitle)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(22.dp)
-    ) {
-
-        TextButton(
-            onClick = onBack
-        ) {
-
+        if (isOffline) {
             Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
+                text = stringResource(R.string.offline_message),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DarkText
             )
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Text(
-            text = "Daily Routine",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Your activities and reminders for today.",
-            fontSize = 16.sp,
-            color = SecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (routines.isEmpty()) {
-            Text(
-                text = "No routine items yet.",
-                fontSize = 16.sp,
-                color = SecondaryText
+        if (isLoading && routines.isEmpty()) {
+            com.example.mind_mitra.ui.components.MindLoadingState(
+                stringResource(R.string.loading)
+            )
+        } else if (routines.isEmpty()) {
+            com.example.mind_mitra.ui.components.MindEmptyState(
+                title = stringResource(R.string.no_routines_title),
+                body = stringResource(R.string.no_routines_body)
             )
         } else {
-            routines.forEach { routine ->
+            routines.filter { it.enabled }.forEach { routine ->
                 RoutineCard(
                     time = routine.time,
                     title = routine.title,
-                    description = if (routine.completed) "Completed today" else "Tap to mark done",
+                    daysOfWeek = routine.daysOfWeek,
+                    reminderNote = routine.reminderNote,
+                    description = if (routine.completed) {
+                        stringResource(R.string.routine_completed_today)
+                    } else {
+                        stringResource(R.string.routine_tap_to_complete)
+                    },
                     completed = routine.completed,
                     onToggle = {
                         onToggleRoutine(routine.id, routine.completed)
@@ -1324,8 +1413,6 @@ private fun RoutineScreen(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(30.dp))
     }
 }
 
@@ -1334,6 +1421,8 @@ private fun RoutineScreen(
 private fun RoutineCard(
     time: String,
     title: String,
+    daysOfWeek: String = "",
+    reminderNote: String = "",
     description: String,
     completed: Boolean = false,
     onToggle: () -> Unit = {}
@@ -1356,9 +1445,9 @@ private fun RoutineCard(
 
             Text(
                 text = time,
-                fontSize = 14.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = DeepTeal
+                color = DarkText
             )
 
             Spacer(modifier = Modifier.height(5.dp))
@@ -1370,12 +1459,30 @@ private fun RoutineCard(
                 color = DarkText
             )
 
+            if (daysOfWeek.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = daysOfWeek,
+                    fontSize = 16.sp,
+                    color = DarkText
+                )
+            }
+
+            if (reminderNote.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = reminderNote,
+                    fontSize = 16.sp,
+                    color = DarkText
+                )
+            }
+
             Spacer(modifier = Modifier.height(5.dp))
 
             Text(
                 text = description,
                 fontSize = 14.sp,
-                color = SecondaryText
+                color = DarkText
             )
 
             if (completed) {
@@ -1386,7 +1493,7 @@ private fun RoutineCard(
                     text = "Completed",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = DeepTeal
+                    color = DarkText
                 )
             }
         }
@@ -1578,108 +1685,137 @@ private fun RewardCard(
 /* TALK */
 /* ================================================= */
 
+private data class ChatMessage(val text: String, val fromUser: Boolean)
+
 @Composable
 private fun TalkScreen(
     onBack: () -> Unit
 ) {
     var input by remember { mutableStateOf("") }
-    var reply by remember { mutableStateOf("Hello! I am Saathi. How can I help you today?") }
+    val context = LocalContext.current
+    val greeting = stringResource(R.string.talk_greeting)
+    var messages by remember {
+        mutableStateOf(listOf(ChatMessage(greeting, fromUser = false)))
+    }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun sendMessage(message: String) {
-        val userId = AuthRepository.getCurrentUserId() ?: return
-        if (message.isBlank()) return
-        scope.launch {
-            isLoading = true
+        if (message.isBlank() || isLoading) return
+        if (AuthRepository.getCurrentUserId() == null) {
+            messages = messages + ChatMessage(
+                context.getString(R.string.talk_auth_error),
+                fromUser = false
+            )
+            return
+        }
+        messages = messages + ChatMessage(message, fromUser = true)
+        scope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { isLoading = true }
             try {
                 val response = RetrofitClient.apiService.chatWithAgent(
-                    AgentChatRequest(user_id = userId, message = message)
+                    AgentChatRequest(
+                        message = message,
+                        language = LocaleHelper.getSavedLanguage(context)
+                    )
                 )
-                reply = response.message ?: "I'm here to help."
-            } catch (e: Exception) {
-                reply = "Sorry, I couldn't respond right now. Please try again."
+                val reply = response.message?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.talk_greeting)
+                withContext(Dispatchers.Main) {
+                    messages = messages + ChatMessage(reply, fromUser = false)
+                    if (message == input.trim()) input = ""
+                }
+            } catch (e: retrofit2.HttpException) {
+                val errorText = when (e.code()) {
+                    503 -> context.getString(R.string.talk_ai_unavailable)
+                    401 -> context.getString(R.string.talk_auth_error)
+                    else -> context.getString(R.string.talk_error)
+                }
+                withContext(Dispatchers.Main) {
+                    messages = messages + ChatMessage(errorText, fromUser = false)
+                }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) {
+                    messages = messages + ChatMessage(
+                        context.getString(R.string.talk_error),
+                        fromUser = false
+                    )
+                }
             } finally {
-                isLoading = false
+                withContext(Dispatchers.Main) { isLoading = false }
             }
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(22.dp)
-    ) {
-
-        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
-        }
-
-        Text(
-            text = "Talk to MIND MITRA",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
+    com.example.mind_mitra.ui.components.MindScreen(onBack = onBack) {
+        com.example.mind_mitra.ui.components.MindSectionHeader(
+            title = stringResource(R.string.talk_title),
+            subtitle = stringResource(R.string.talk_subtitle)
         )
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Chat with Saathi for help, reminders, or memories.",
-            fontSize = 16.sp,
-            color = SecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = SoftBlue)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(reply, fontSize = 16.sp, color = DarkText, lineHeight = 24.sp)
-                if (isLoading) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    CircularProgressIndicator(color = DeepTeal)
-                }
+        messages.forEach { msg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (msg.fromUser) SoftMint else SoftBlue
+                )
+            ) {
+                Text(
+                    msg.text,
+                    modifier = Modifier.padding(16.dp),
+                    fontSize = 17.sp,
+                    color = DarkText,
+                    lineHeight = 24.sp
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = DeepTeal,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = input,
             onValueChange = { input = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Type your message") },
-            singleLine = false
+            label = { Text(stringResource(R.string.talk_type_hint)) },
+            singleLine = false,
+            enabled = !isLoading
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Button(
-            onClick = {
-                sendMessage(input.trim())
-                input = ""
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading && input.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
-        ) {
-            Text("Send to Saathi", fontSize = 16.sp)
-        }
+        com.example.mind_mitra.ui.components.MindPrimaryButton(
+            text = stringResource(R.string.talk_send),
+            onClick = { sendMessage(input.trim()) },
+            enabled = !isLoading && input.isNotBlank()
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text("Try asking:", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
-        Spacer(modifier = Modifier.height(12.dp))
-        SuggestionCard("What is my next activity?", onClick = { sendMessage("What is my next activity?") })
-        SuggestionCard("Recommend a game", onClick = { sendMessage("Recommend a game") })
-        SuggestionCard("Show me a family memory", onClick = { sendMessage("Show me a family memory") })
+        val suggestionActivity = stringResource(R.string.talk_suggestion_activity)
+        val suggestionGame = stringResource(R.string.talk_suggestion_game)
+        val suggestionMemory = stringResource(R.string.talk_suggestion_memory)
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Text(
+            stringResource(R.string.talk_try_asking),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        SuggestionCard(suggestionActivity, onClick = { sendMessage(suggestionActivity) })
+        SuggestionCard(suggestionGame, onClick = { sendMessage(suggestionGame) })
+        SuggestionCard(suggestionMemory, onClick = { sendMessage(suggestionMemory) })
     }
 }
 
@@ -1908,6 +2044,7 @@ private fun MoreContent(
     onOpenMusic: () -> Unit,
     onOpenTalk: () -> Unit,
     onOpenProgress: () -> Unit,
+    onChangeLanguage: () -> Unit,
     onLogout: () -> Unit
 ) {
 
@@ -1919,7 +2056,7 @@ private fun MoreContent(
     ) {
 
         Text(
-            text = "Settings",
+            text = stringResource(R.string.settings_title),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
@@ -1928,23 +2065,28 @@ private fun MoreContent(
         Spacer(modifier = Modifier.height(20.dp))
 
         MoreButton(
-            "Daily Routine",
+            stringResource(R.string.daily_routine),
             onOpenRoutine
         )
 
         MoreButton(
-            "Music & Rewards",
+            stringResource(R.string.music_rewards),
             onOpenMusic
         )
 
         MoreButton(
-            "Talk to MIND MITRA",
+            stringResource(R.string.talk_title),
             onOpenTalk
         )
 
         MoreButton(
-            "Progress",
+            stringResource(R.string.progress_title),
             onOpenProgress
+        )
+
+        MoreButton(
+            title = stringResource(R.string.change_language),
+            onClick = onChangeLanguage
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1957,7 +2099,12 @@ private fun MoreContent(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         ) {
-            Text("Log out", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = DeepTeal)
+            Text(
+                stringResource(R.string.logout),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepTeal
+            )
         }
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -2011,10 +2158,10 @@ private fun BottomNavigation(
 ) {
 
     val tabs = listOf(
-        "Home",
-        "Games",
-        "Memories",
-        "More"
+        stringResource(R.string.nav_home),
+        stringResource(R.string.nav_games),
+        stringResource(R.string.nav_memories),
+        stringResource(R.string.nav_more)
     )
 
     NavigationBar(

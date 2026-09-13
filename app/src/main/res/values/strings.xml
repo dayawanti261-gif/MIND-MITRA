@@ -1,3 +1,231 @@
 <resources>
     <string name="app_name">MIND-MITRA</string>
+
+    <!-- Language -->
+    <string name="choose_language_title">Choose your language</string>
+    <string name="choose_language_subtitle">Select the language you are most comfortable with.</string>
+    <string name="continue_button">Continue</string>
+    <string name="change_language">Change language</string>
+
+    <!-- Welcome / Auth -->
+    <string name="welcome_title">MIND MITRA</string>
+    <string name="welcome_tagline">A smarter way to support memory, routine and connection.</string>
+    <string name="welcome_body">Personalized cognitive activities, meaningful memories and daily support — designed around the person.</string>
+    <string name="welcome_get_started">Get Started</string>
+    <string name="login_title">Sign in</string>
+    <string name="signup_title">Create account</string>
+    <string name="email_label">Email</string>
+    <string name="password_label">Password</string>
+    <string name="login_button">Sign in</string>
+    <string name="signup_button">Sign up</string>
+    <string name="role_patient">I am a patient</string>
+    <string name="role_caregiver">I am a caregiver</string>
+    <string name="profile_setup_title">Set up your profile</string>
+    <string name="profile_name_label">What should we call you?</string>
+    <string name="profile_pin_label">Create 6-digit caregiver PIN</string>
+    <string name="profile_pin_hint">Share this PIN with your caregiver</string>
+    <string name="logout">Log out</string>
+    <string name="back_button">Back</string>
+
+    <!-- Patient Home -->
+    <string name="good_morning">Good morning</string>
+    <string name="todays_reminders">Today\'s reminders</string>
+    <string name="no_reminders_today">No reminders for today.</string>
+    <string name="todays_routine">Today\'s activities</string>
+    <string name="talk_to_saathi">Talk to Saathi</string>
+    <string name="memory_vault_button">Memory Vault</string>
+    <string name="games_button">Games</string>
+    <string name="progress_button">Progress</string>
+    <string name="music_button">Music</string>
+    <string name="loading">Loading…</string>
+    <string name="offline_message">You are offline. Showing saved information.</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_games">Games</string>
+    <string name="nav_memories">Memories</string>
+    <string name="nav_progress">Progress</string>
+    <string name="nav_more">More</string>
+
+    <!-- Connect Patient -->
+    <string name="connect_patient_title">Connect Patient</string>
+    <string name="connect_patient_subtitle">Connect using the patient\'s registered email and 6-digit connection PIN.</string>
+    <string name="patient_email_label">Patient email</string>
+    <string name="patient_email_hint">Enter patient email</string>
+    <string name="connection_pin_label">6-digit PIN</string>
+    <string name="connection_pin_hint">Enter 6-digit PIN</string>
+    <string name="connect_patient_button">Connect Patient</string>
+    <string name="connecting">Connecting…</string>
+    <string name="connect_success">Patient connected successfully.</string>
+    <string name="error_enter_email">Please enter the patient\'s email.</string>
+    <string name="error_enter_pin">Please enter the 6-digit PIN.</string>
+    <string name="error_session_not_found">Session not found. Please log in again.</string>
+    <string name="error_patient_not_found">Patient not found. Please check the email.</string>
+    <string name="error_invalid_pin">Invalid connection PIN. Please check the 6-digit PIN.</string>
+    <string name="error_already_linked">You are already connected to a patient.</string>
+    <string name="error_patient_already_linked">This patient is already linked to another caregiver.</string>
+    <string name="error_network">Network connection unavailable. Please try again.</string>
+    <string name="error_server">Something went wrong. Please try again.</string>
+    <string name="error_no_patient">No patient connected.</string>
+
+    <!-- Memory Vault -->
+    <string name="memory_vault_title">Memory Vault</string>
+    <string name="memory_vault_subtitle">Browse memories by category</string>
+    <string name="memory_count">%1$d memories</string>
+    <string name="no_memories_title">No memories yet</string>
+    <string name="no_memories_body">Memories added by your caregiver will appear here.</string>
+    <string name="no_photo_placeholder">No photo available</string>
+    <string name="back_to_categories">← Back to categories</string>
+    <string name="delete_memory">Delete</string>
+    <string name="delete_memory_confirm">Delete this memory?</string>
+    <string name="delete_memory_body">This memory will be removed from the vault. This cannot be undone.</string>
+    <string name="delete_memory_error">Could not delete this memory. Please try again.</string>
+    <string name="cancel">Cancel</string>
+    <string name="settings_title">Settings</string>
+    <string name="daily_routine">Daily Routine</string>
+    <string name="music_rewards">Music &amp; Rewards</string>
+    <string name="music_title">Music</string>
+    <string name="music_subtitle">Listen to calm and familiar music on YouTube.</string>
+    <string name="music_favourite">Favourite Music</string>
+    <string name="music_favourite_desc">Open soothing and familiar songs chosen for you.</string>
+    <string name="music_calm">Calm Music</string>
+    <string name="music_calm_desc">Gentle music for a quiet, peaceful moment.</string>
+    <string name="music_open_youtube">Open in YouTube</string>
+    <string name="music_play">Play</string>
+    <string name="music_opening">Opening…</string>
+    <string name="music_no_preferences_title">No music saved yet</string>
+    <string name="music_no_preferences_body">Your caregiver can add music preferences for you.</string>
+    <string name="music_preferences_title">Music Preferences</string>
+    <string name="music_preferences_caregiver_hint">Add songs, artists, or styles the patient enjoys. Each item gets a Play button on the patient Music screen.</string>
+    <string name="music_pref_label">Label</string>
+    <string name="music_pref_label_hint">Example: Assamese music</string>
+    <string name="music_pref_search">YouTube search</string>
+    <string name="music_pref_search_hint">Example: old Hindi songs</string>
+    <string name="music_pref_url">YouTube link (optional)</string>
+    <string name="music_pref_url_hint">https://www.youtube.com/…</string>
+    <string name="music_add_preference">Add music preference</string>
+    <string name="routine_subtitle">Your activities for today.</string>
+    <string name="no_routines_title">No routines yet</string>
+    <string name="no_routines_body">Your caregiver has not added any routine activities yet.</string>
+    <string name="routine_completed_today">Completed today</string>
+    <string name="routine_tap_to_complete">Tap to mark done</string>
+    <string name="music_favourite_search">calm relaxing music for seniors</string>
+    <string name="music_calm_search">peaceful instrumental music</string>
+    <string name="next_up">Next up</string>
+    <string name="view_routine">View Routine</string>
+    <string name="talk_try_asking">Try asking:</string>
+    <string name="talk_suggestion_activity">What is my next activity?</string>
+    <string name="talk_suggestion_game">Recommend a game</string>
+    <string name="talk_suggestion_memory">Show me a family memory</string>
+    <string name="talk_auth_error">Please sign in again to chat with Saathi.</string>
+    <string name="add_memory_title">Add Memory</string>
+    <string name="add_memory_subtitle">Save a meaningful memory for your loved one</string>
+    <string name="category_label">Category</string>
+    <string name="add_photo">Add Photo</string>
+    <string name="memory_title_label">Title</string>
+    <string name="memory_title_hint">Example: My school days</string>
+    <string name="memory_desc_label">Description</string>
+    <string name="memory_desc_hint">Write a short description</string>
+    <string name="save_memory">Save Memory</string>
+    <string name="saving">Saving…</string>
+    <string name="memory_saved">Memory saved successfully.</string>
+    <string name="error_memory_title">Please enter a title.</string>
+    <string name="cat_family">Family</string>
+    <string name="cat_childhood">Childhood</string>
+    <string name="cat_special_moments">Special Moments</string>
+    <string name="cat_people">People</string>
+    <string name="cat_places">Places</string>
+    <string name="cat_achievements">Achievements</string>
+    <string name="cat_other">Other</string>
+
+    <!-- Reminders -->
+    <string name="reminder_notification_channel">MIND-MITRA reminders</string>
+    <string name="reminder_notification_title">Reminder</string>
+    <string name="create_reminder">Create Reminder</string>
+    <string name="reminder_title_label">Reminder</string>
+    <string name="reminder_time_label">Time</string>
+    <string name="reminder_date_label">Date</string>
+    <string name="reminder_saved">Reminder created successfully.</string>
+
+    <!-- AI Saathi -->
+    <string name="talk_title">Talk to Saathi</string>
+    <string name="talk_subtitle">Chat with Saathi for help, reminders, or memories.</string>
+    <string name="talk_greeting">Hello! I am Saathi. How can I help you today?</string>
+    <string name="talk_send">Send to Saathi</string>
+    <string name="talk_ai_unavailable">Saathi is temporarily unavailable. Please try again later.</string>
+    <string name="talk_error">Sorry, I couldn\'t respond right now. Please try again.</string>
+    <string name="talk_type_hint">Type your message</string>
+
+    <!-- Games -->
+    <string name="games_title">Games</string>
+    <string name="games_subtitle">Play with memories shared by your family.</string>
+    <string name="play_button">Play</string>
+    <string name="start_game">Start</string>
+    <string name="play_again">Play again</string>
+    <string name="game_instructions_intro">Read the instructions, then tap Start when you are ready.</string>
+    <string name="game_complete_score">Well done! Score: %1$d%%</string>
+    <string name="difficulty_label">Difficulty: %1$s</string>
+    <string name="difficulty_easy">Easy</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="game_memory_match">Memory Match</string>
+    <string name="game_memory_match_desc">Use family memories to find matching pairs.</string>
+    <string name="game_recall">Memory Recall</string>
+    <string name="game_recall_desc">Remember stories and moments shared by your family.</string>
+    <string name="game_sequence">Memory Sequence</string>
+    <string name="game_sequence_desc">Put your family\'s memories in the right order.</string>
+    <string name="no_memories_for_games_title">No memories yet</string>
+    <string name="no_memories_for_games_body">Your family has not added any memories yet. Ask your caregiver to add memories in the Memory Vault.</string>
+    <string name="no_games_completed_title">No games completed yet</string>
+    <string name="no_games_completed_body">No games completed yet. Play a game to see your progress here.</string>
+    <string name="no_rewards_yet">No rewards earned yet. Keep playing to earn achievements.</string>
+    <string name="best_score">Best score</string>
+    <string name="best_score_label">Best: %1$d%%</string>
+    <string name="reward_earned_title">You earned a reward!</string>
+    <string name="reward_memory_master">Memory Master</string>
+    <string name="reward_memory_master_desc">Completed 5 memory games.</string>
+    <string name="reward_great_recall">Great Recall</string>
+    <string name="reward_great_recall_desc">Scored 80% or higher on Memory Recall.</string>
+    <string name="reward_consistent_mind">Consistent Mind</string>
+    <string name="reward_consistent_mind_desc">Played games for 3 days in a row.</string>
+    <string name="recall_question_title">What was the title of this memory?</string>
+    <string name="recall_question_description">What was written about this memory?</string>
+    <string name="recall_question_category">What category is this memory?</string>
+    <string name="sequence_remember_order">Remember the order of these memories:</string>
+    <string name="sequence_tap_order">Tap the memories in the correct order:</string>
+    <string name="sequence_progress">%1$d of %2$d selected</string>
+    <string name="recall_remember">Remember these items:</string>
+    <string name="recall_select">Select the items you remember:</string>
+    <string name="word_picture_prompt">Which one is %1$s?</string>
+    <string name="attention_prompt">Tap the object that is different:</string>
+
+    <!-- Progress & Rewards -->
+    <string name="progress_title">Progress</string>
+    <string name="activities_completed">Activities completed</string>
+    <string name="current_streak">Current streak</string>
+    <string name="streak_days">%1$d days</string>
+    <string name="week_activities">This week\'s activities</string>
+    <string name="recent_activities">Recent activities</string>
+    <string name="rewards_title">Rewards</string>
+    <string name="status_not_started">Not started</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_needs_practice">Needs more practice</string>
+    <string name="status_stable">Stable</string>
+    <string name="status_improving">Improving</string>
+    <string name="reward_first">First Activity</string>
+    <string name="reward_first_desc">Completed your first activity</string>
+    <string name="reward_streak">3-Day Streak</string>
+    <string name="reward_streak_desc">Played activities for 3 days</string>
+    <string name="reward_explorer">Memory Explorer</string>
+    <string name="reward_explorer_desc">Completed 5 activities</string>
+    <string name="reward_learner">Consistent Learner</string>
+    <string name="reward_learner_desc">Completed 10 activities</string>
+
+    <!-- Caregiver -->
+    <string name="caregiver_dashboard">Caregiver Dashboard</string>
+    <string name="section_patient">Patient</string>
+    <string name="section_today">Today</string>
+    <string name="section_memories">Memories</string>
+    <string name="section_tasks">Tasks</string>
+    <string name="section_settings">Settings</string>
+    <string name="view_memory_vault">View Memory Vault</string>
+    <string name="add_memory">Add Memory</string>
 </resources>

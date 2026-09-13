@@ -172,14 +172,18 @@ def show_memory(user_id: str, memory_id: str) -> dict:
 
 
 def create_reminder(user_id: str, task: str, time: str) -> dict:
-    routine_ref = (
-        db.collection("users").document(user_id).collection("routines").document()
+    reminder_ref = (
+        db.collection("users").document(user_id).collection("reminders").document()
     )
-    routine_ref.set(
+    reminder_ref.set(
         {
-            "id": routine_ref.id,
+            "id": reminder_ref.id,
             "title": task,
+            "description": "",
+            "date": "",
             "time": time,
+            "repeat": "none",
+            "enabled": True,
             "lastCompletedDate": None,
             "timestamp": int(time_module.time() * 1000),
         }
@@ -187,5 +191,5 @@ def create_reminder(user_id: str, task: str, time: str) -> dict:
     return {
         "success": True,
         "message": f"Reminder created for {task} at {time}.",
-        "reminder": {"id": routine_ref.id, "activity": task, "time": time},
+        "reminder": {"id": reminder_ref.id, "activity": task, "time": time},
     }

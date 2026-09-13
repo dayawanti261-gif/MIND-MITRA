@@ -24,6 +24,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import com.example.mind_mitra.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,6 +49,9 @@ import com.example.mind_mitra.network.MemoryData
 import com.example.mind_mitra.network.MemoryRequest
 import com.example.mind_mitra.network.PhotoUploadHelper
 import com.example.mind_mitra.network.RetrofitClient
+import com.example.mind_mitra.network.ReminderRequest
+import com.example.mind_mitra.caregiver.AddMemoryScreen
+import com.example.mind_mitra.memory.MemoryVaultCategoriesScreen
 import com.example.mind_mitra.network.RoutineRequest
 import com.example.mind_mitra.ui.theme.MindBorder
 import com.example.mind_mitra.ui.theme.MindCard
@@ -87,7 +93,8 @@ private val TouchMinHeight = 56.dp
 @Composable
 fun CaregiverDashboardScreen(
     caregiverName: String,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onChangeLanguage: () -> Unit = {}
 ) {
     var currentTab by remember { mutableStateOf("home") }
     var currentSection by remember { mutableStateOf("dashboard") }
@@ -95,6 +102,13 @@ fun CaregiverDashboardScreen(
     if (currentSection != "dashboard") {
 
         when (currentSection) {
+
+            "add_memory" -> {
+                AddMemoryScreen(
+                    onBack = { currentSection = "memories" },
+                    onSaved = { currentSection = "memories" }
+                )
+            }
 
             // =====================================================
             // PROFILE
@@ -359,10 +373,7 @@ fun CaregiverDashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                             Button(
-                                onClick = {
-                                    showAddForm = !showAddForm
-                                    message = ""
-                                },
+                                onClick = { currentSection = "add_memory" },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(TouchMinHeight),
@@ -372,7 +383,7 @@ fun CaregiverDashboardScreen(
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
-                                    text = if (showAddForm) "Close form" else "Add Memory",
+                                    text = "Add Memory",
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -517,17 +528,28 @@ fun CaregiverDashboardScreen(
                             val time =
                                 it["time"] as? String ?: "Time not set"
 
-                            val completed =
-                                it["completed"] as? Boolean ?: false
+                            val days =
+                                it["daysOfWeek"] as? String ?: "Every day"
 
-                            RoutineItem(
-                                time = time,
-                                activity =
-                                    "$title ${
-                                        if (completed) "✓"
-                                        else ""
-                                    }"
-                            )
+                            val enabled =
+                                it["enabled"] as? Boolean ?: true
+
+                            val lastCompleted =
+                                it["lastCompletedDate"] as? String
+                            val completed = lastCompleted ==
+                                com.example.mind_mitra.data.todayDateString()
+
+                            if (enabled) {
+                                RoutineItem(
+                                    time = time,
+                                    activity = buildString {
+                                        append(title)
+                                        append(" · ")
+                                        append(days)
+                                        if (completed) append(" ✓")
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -709,6 +731,12 @@ fun CaregiverDashboardScreen(
                 var favouriteActivities by remember { mutableStateOf("") }
                 var favouriteMemories by remember { mutableStateOf("") }
                 var language by remember { mutableStateOf("") }
+                var musicPreferences by remember {
+                    mutableStateOf<List<com.example.mind_mitra.data.MusicPreferenceItem>>(emptyList())
+                }
+                var newMusicLabel by remember { mutableStateOf("") }
+                var newMusicSearch by remember { mutableStateOf("") }
+                var newMusicUrl by remember { mutableStateOf("") }
 
                 var isLoading by remember { mutableStateOf(true) }
                 var isSaving by remember { mutableStateOf(false) }
@@ -749,6 +777,9 @@ fun CaregiverDashboardScreen(
                                             preferences["favouriteMemories"] as? String ?: ""
                                         language =
                                             preferences["language"] as? String ?: ""
+                                        musicPreferences =
+                                            com.example.mind_mitra.data.MusicPreferenceItem
+                                                .parseList(preferences["musicPreferences"])
                                     }
 
                                     isLoading = false
@@ -842,6 +873,99 @@ fun CaregiverDashboardScreen(
                             singleLine = true
                         )
 
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            text = stringResource(R.string.music_preferences_title),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.music_preferences_caregiver_hint),
+                            fontSize = 17.sp,
+                            color = DarkText
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        musicPreferences.forEach { item ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(2.dp, Color.Black)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.label, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
+                                        if (item.searchQuery.isNotBlank()) {
+                                            Text(item.searchQuery, fontSize = 16.sp, color = DarkText)
+                                        }
+                                    }
+                                    TextButton(onClick = {
+                                        musicPreferences = musicPreferences.filter { it.id != item.id }
+                                    }) {
+                                        Text(stringResource(R.string.delete_memory), color = DeepTeal)
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = newMusicLabel,
+                            onValueChange = { newMusicLabel = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.music_pref_label)) },
+                            placeholder = { Text(stringResource(R.string.music_pref_label_hint)) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newMusicSearch,
+                            onValueChange = { newMusicSearch = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.music_pref_search)) },
+                            placeholder = { Text(stringResource(R.string.music_pref_search_hint)) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newMusicUrl,
+                            onValueChange = { newMusicUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text(stringResource(R.string.music_pref_url)) },
+                            placeholder = { Text(stringResource(R.string.music_pref_url_hint)) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                if (newMusicLabel.trim().isEmpty()) {
+                                    message = "Please enter a music label."
+                                    return@Button
+                                }
+                                val label = newMusicLabel.trim()
+                                musicPreferences = musicPreferences + com.example.mind_mitra.data.MusicPreferenceItem(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    label = label,
+                                    searchQuery = newMusicSearch.trim().ifBlank { label },
+                                    youtubeUrl = newMusicUrl.trim()
+                                )
+                                newMusicLabel = ""
+                                newMusicSearch = ""
+                                newMusicUrl = ""
+                                message = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+                        ) {
+                            Text(stringResource(R.string.music_add_preference))
+                        }
+
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Button(
@@ -872,6 +996,7 @@ fun CaregiverDashboardScreen(
                                             favouriteActivities = favouriteActivities.trim(),
                                             favouriteMemories = favouriteMemories.trim(),
                                             language = language.trim(),
+                                            musicPreferences = musicPreferences,
 
                                             onSuccess = {
                                                 isSaving = false
@@ -1055,6 +1180,7 @@ fun CaregiverDashboardScreen(
                         onSectionSelected = {
                             currentSection = it
                         },
+                        onChangeLanguage = onChangeLanguage,
                         onLogout = onLogout
                     )
                 }
@@ -1517,6 +1643,9 @@ private fun AddRoutineForm(
 
     var title by remember { mutableStateOf("") }
     var time by remember { mutableStateOf("") }
+    var daysOfWeek by remember { mutableStateOf("Every day") }
+    var enabled by remember { mutableStateOf(true) }
+    var reminderNote by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     Card(
@@ -1572,6 +1701,42 @@ private fun AddRoutineForm(
                 singleLine = true
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = daysOfWeek,
+                onValueChange = { daysOfWeek = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Days") },
+                placeholder = { Text("Example: Every day") },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = reminderNote,
+                onValueChange = { reminderNote = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Reminder note (optional)") },
+                placeholder = { Text("Example: Take medicine after breakfast") },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.Switch(
+                    checked = enabled,
+                    onCheckedChange = { enabled = it }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Enabled", color = DarkText, fontSize = 18.sp)
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
             Button(
@@ -1613,7 +1778,10 @@ private fun AddRoutineForm(
                                             RoutineRequest(
                                                 user_id = patientId,
                                                 title = title.trim(),
-                                                time = time.trim()
+                                                time = time.trim(),
+                                                days_of_week = daysOfWeek.trim().ifBlank { "Every day" },
+                                                enabled = enabled,
+                                                reminder_note = reminderNote.trim().ifBlank { null }
                                             )
                                         )
                                         onSaved()
@@ -1746,18 +1914,20 @@ private fun AddReminderForm(
                                 onError("No patient connected.")
                             } else {
 
-                                // CHANGED: was FirebaseRepository.addReminder
-                                // (direct Firestore write). Reminders and
-                                // routines share the same backend endpoint,
-                                // same as they shared the same Firestore
-                                // collection before.
                                 scope.launch {
                                     try {
-                                        RetrofitClient.apiService.addRoutine(
-                                            RoutineRequest(
+                                        val today = java.text.SimpleDateFormat(
+                                            "yyyy-MM-dd",
+                                            java.util.Locale.getDefault()
+                                        ).format(java.util.Date())
+                                        RetrofitClient.apiService.addReminder(
+                                            ReminderRequest(
                                                 user_id = patientId,
                                                 title = title.trim(),
-                                                time = time.trim()
+                                                time = time.trim(),
+                                                date = today,
+                                                repeat = "none",
+                                                enabled = true
                                             )
                                         )
                                         onSaved()
@@ -2023,6 +2193,7 @@ private fun CaregiverMonitorTab(
 @Composable
 private fun CaregiverMoreTab(
     onSectionSelected: (String) -> Unit,
+    onChangeLanguage: () -> Unit,
     onLogout: () -> Unit
 ) {
 
@@ -2058,6 +2229,22 @@ private fun CaregiverMoreTab(
         "Preferences",
         { onSectionSelected("preferences") }
     )
+
+    Button(
+        onClick = onChangeLanguage,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(TouchMinHeight),
+        colors = ButtonDefaults.buttonColors(containerColor = SoftMint),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Text(
+            stringResource(R.string.change_language),
+            color = DeepTeal,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp
+        )
+    }
 
     Spacer(modifier = Modifier.height(28.dp))
     HorizontalDivider(color = MindBorder)

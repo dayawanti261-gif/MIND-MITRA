@@ -1,20 +1,24 @@
 package com.example.mind_mitra
 
+import android.content.Context
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 
+import com.example.mind_mitra.auth.LanguageSelectionScreen
 import com.example.mind_mitra.auth.LoginScreen
 import com.example.mind_mitra.auth.RoleSelectionScreen
 import com.example.mind_mitra.auth.UserProfileScreen
@@ -23,17 +27,26 @@ import com.example.mind_mitra.caregiver.CaregiverDashboardScreen
 import com.example.mind_mitra.caregiver.ConnectPatientScreen
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
+import com.example.mind_mitra.locale.LocaleHelper
 import com.example.mind_mitra.ui.theme.MINDMITRATheme
 import com.example.mind_mitra.user.UserHomeScreen
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrapContext(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LocaleHelper.applySavedLocale(this)
 
         setContent {
-            MINDMITRATheme {
-                MindMitraApp()
+            val language = LocaleHelper.getSavedLanguage(this)
+            key(language) {
+                MINDMITRATheme {
+                    MindMitraApp()
+                }
             }
         }
     }
@@ -48,7 +61,7 @@ private fun resolveRole(profile: Map<String, Any>?): String {
 
 @Composable
 fun MindMitraApp() {
-
+    val context = LocalContext.current
     var currentScreen by remember { mutableStateOf("checking") }
     var selectedRole by remember { mutableStateOf("") }
     var userName by remember { mutableStateOf("") }
@@ -59,7 +72,7 @@ fun MindMitraApp() {
         selectedRole = ""
         userName = ""
         caregiverName = "Caregiver"
-        currentScreen = "welcome"
+        currentScreen = "language"
     }
 
     fun routeFromProfile(profile: Map<String, Any>?, userId: String) {
@@ -71,13 +84,11 @@ fun MindMitraApp() {
                         selectedRole = "Caregiver"
                         currentScreen = "caregiver_home"
                     } else {
-                        selectedRole = "User"
-                        currentScreen = "user_profile"
+                        currentScreen = "role_selection"
                     }
                 },
                 onError = {
-                    selectedRole = "User"
-                    currentScreen = "user_profile"
+                    currentScreen = "role_selection"
                 }
             )
             return
@@ -95,7 +106,6 @@ fun MindMitraApp() {
                     if (linkedPatientId != null) "caregiver_home"
                     else "connect_patient"
             }
-
             else -> {
                 userName = name
                 currentScreen = "user_home"
@@ -106,7 +116,7 @@ fun MindMitraApp() {
     LaunchedEffect(Unit) {
         val userId = AuthRepository.getCurrentUserId()
         if (userId == null) {
-            currentScreen = "welcome"
+            currentScreen = if (LocaleHelper.hasSelectedLanguage(context)) "welcome" else "language"
         } else {
             FirebaseRepository.getUserProfile(
                 userId = userId,
@@ -117,35 +127,25 @@ fun MindMitraApp() {
     }
 
     when (currentScreen) {
-
         "checking" -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         }
-
-        "welcome" -> {
-            WelcomeScreen(
-                onGetStarted = { currentScreen = "role_selection" }
+        "language" -> {
+            LanguageSelectionScreen(
+                onContinue = { /* activity recreates */ }
             )
         }
-
+        "welcome" -> {
+            WelcomeScreen(onGetStarted = { currentScreen = "role_selection" })
+        }
         "role_selection" -> {
             RoleSelectionScreen(
-                onUserSelected = {
-                    selectedRole = "User"
-                    currentScreen = "login"
-                },
-                onCaregiverSelected = {
-                    selectedRole = "Caregiver"
-                    currentScreen = "login"
-                }
+                onUserSelected = { selectedRole = "User"; currentScreen = "login" },
+                onCaregiverSelected = { selectedRole = "Caregiver"; currentScreen = "login" }
             )
         }
-
         "login" -> {
             LoginScreen(
                 role = selectedRole,
@@ -163,9 +163,7 @@ fun MindMitraApp() {
                                 if (profile != null) {
                                     userName = profile["name"] as? String ?: ""
                                     currentScreen = "user_home"
-                                } else {
-                                    currentScreen = "user_profile"
-                                }
+                                } else currentScreen = "user_profile"
                             },
                             onError = { currentScreen = "user_profile" }
                         )
@@ -188,39 +186,31 @@ fun MindMitraApp() {
                             onSuccess = { currentScreen = "connect_patient" },
                             onError = { currentScreen = "connect_patient" }
                         )
-                    } else {
-                        currentScreen = "connect_patient"
-                    }
+                    } else currentScreen = "connect_patient"
                 }
             )
         }
-
         "user_profile" -> {
-            UserProfileScreen(
-                onProfileCompleted = { name ->
-                    userName = name
-                    currentScreen = "user_home"
-                }
-            )
+            UserProfileScreen(onProfileCompleted = { name ->
+                userName = name
+                currentScreen = "user_home"
+            })
         }
-
         "user_home" -> {
             UserHomeScreen(
                 userName = userName,
-                onLogout = { handleLogout() }
+                onLogout = { handleLogout() },
+                onChangeLanguage = { currentScreen = "language" }
             )
         }
-
         "connect_patient" -> {
-            ConnectPatientScreen(
-                onConnected = { currentScreen = "caregiver_home" }
-            )
+            ConnectPatientScreen(onConnected = { currentScreen = "caregiver_home" })
         }
-
         "caregiver_home" -> {
             CaregiverDashboardScreen(
                 caregiverName = caregiverName,
-                onLogout = { handleLogout() }
+                onLogout = { handleLogout() },
+                onChangeLanguage = { currentScreen = "language" }
             )
         }
     }
