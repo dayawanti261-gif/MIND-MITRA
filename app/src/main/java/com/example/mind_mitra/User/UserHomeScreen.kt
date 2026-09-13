@@ -1,7 +1,7 @@
 package com.example.mind_mitra.user
 
-
-import androidx.compose.foundation.Image
+import com.example.mind_mitra.data.AuthRepository
+import android.util.Log
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.layout.ContentScale
@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -847,33 +845,40 @@ private fun MemoryVaultScreen(
     }
 
     LaunchedEffect(Unit) {
-        try {
-            val response =
-                RetrofitClient.apiService.getUserMemories("pink-user")
+        val userId = AuthRepository.getCurrentUserId()
 
-            memories = response.memories
+        if (userId == null) {
+            errorMessage = "User session not found."
+            isLoading = false
+        } else {
+            try {
+                val response =
+                    RetrofitClient.apiService.getUserMemories(userId)
+                Log.d("MEMORY_DEBUG", "Fetched ${response.memories.size} memories: ${response.memories}")
+                memories = response.memories
 
-            val urls = mutableMapOf<String, String>()
+                val urls = mutableMapOf<String, String>()
 
-            for (memory in response.memories) {
-                if (!memory.photo_path.isNullOrEmpty()) {
-                    try {
-                        val photoResponse =
-                            RetrofitClient.apiService.getPhotoUrl(memory.photo_path)
+                for (memory in response.memories) {
+                    if (!memory.photo_path.isNullOrEmpty()) {
+                        try {
+                            val photoResponse =
+                                RetrofitClient.apiService.getPhotoUrl(memory.photo_path)
 
-                        urls[memory.memory_id] = photoResponse.signed_url
-                    } catch (e: Exception) {
-                        // Ignore failed photo URL
+                            urls[memory.id] = photoResponse.signed_url
+                        } catch (e: Exception) {
+                            // Ignore failed photo URL
+                        }
                     }
                 }
+
+                photoUrls = urls
+                isLoading = false
+
+            } catch (e: Exception) {
+                errorMessage = e.message
+                isLoading = false
             }
-
-            photoUrls = urls
-            isLoading = false
-
-        } catch (e: Exception) {
-            errorMessage = e.message
-            isLoading = false
         }
     }
 
@@ -941,9 +946,30 @@ private fun MemoryVaultScreen(
             )
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            // NEW: surface load failures instead of silently showing an
+            // empty list — this is what was hiding the 401 from the
+            // backend's new auth requirement.
+            if (errorMessage != null) {
+                Text(
+                    text = "Couldn't load memories: $errorMessage",
+                    fontSize = 14.sp,
+                    color = SecondaryText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
 
-        if (selectedCategory == null) {
+        if (isLoading) {
+
+            Text(
+                text = "Loading memories...",
+                modifier = Modifier.padding(horizontal = 22.dp),
+                fontSize = 16.sp,
+                color = SecondaryText
+            )
+
+        } else if (selectedCategory == null) {
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -1034,7 +1060,7 @@ private fun MemoryVaultScreen(
 
                                     val imageUrl =
                                         memory.photo_url
-                                            ?: photoUrls[memory.memory_id]
+                                            ?: photoUrls[memory.id]
 
                                     if (!imageUrl.isNullOrEmpty()) {
 

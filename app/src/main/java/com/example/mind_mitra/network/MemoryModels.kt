@@ -6,8 +6,9 @@ data class MemoryResponse(
 )
 
 data class MemoryData(
-    val memory_id: String,
-    val user_id: String,
+    // CHANGED: backend's memories.py now returns "id" (matching the
+    // pattern used for games/routines), not "memory_id".
+    val id: String,
     val title: String?,
     val description: String?,
     val category: String?,
