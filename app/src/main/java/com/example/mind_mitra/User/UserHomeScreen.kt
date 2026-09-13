@@ -1,7 +1,18 @@
 package com.example.mind_mitra.user
 
 import com.example.mind_mitra.data.AuthRepository
+import com.example.mind_mitra.data.RoutineItem
+import com.example.mind_mitra.notifications.RequestNotificationPermissionIfNeeded
+import com.example.mind_mitra.notifications.ReminderScheduler
+import com.example.mind_mitra.network.AgentChatRequest
 import android.util.Log
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.CircularProgressIndicator
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.layout.ContentScale
@@ -63,7 +74,23 @@ private val SoftBlue = Color(0xFFE5EEF7)
 private val SoftLavender = Color(0xFFEDE8F5)
 
 @Composable
-fun UserHomeScreen(userName: String) {
+fun UserHomeScreen(
+    userName: String,
+    onLogout: () -> Unit = {}
+) {
+    val viewModel: UserHomeViewModel = viewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.routines) {
+        if (uiState.routines.isNotEmpty()) {
+            ReminderScheduler.scheduleRoutineReminders(context, uiState.routines)
+        }
+    }
+
+    val displayName = userName.ifBlank { uiState.userName.ifBlank { "Friend" } }
+
+    RequestNotificationPermissionIfNeeded()
 
     var selectedTab by remember { mutableStateOf(0) }
     var currentPage by remember { mutableStateOf("main") }
@@ -87,7 +114,10 @@ fun UserHomeScreen(userName: String) {
                     when (selectedTab) {
 
                         0 -> HomeContent(
-                            userName = userName,
+                            userName = displayName,
+                            routines = uiState.routines,
+                            progressStats = uiState.progressStats,
+                            onOpenGames = { selectedTab = 1 },
                             onOpenRoutine = {
                                 currentPage = "routine"
                             },
@@ -105,7 +135,9 @@ fun UserHomeScreen(userName: String) {
                             }
                         )
 
-                        1 -> GamesContent()
+                        1 -> GamesContent(
+                            onPlayMatching = { currentPage = "matching_game" }
+                        )
 
                         2 -> MemoryVaultScreen(
                             onBack = {
@@ -125,15 +157,24 @@ fun UserHomeScreen(userName: String) {
                             },
                             onOpenProgress = {
                                 currentPage = "progress"
-                            }
+                            },
+                            onLogout = onLogout
                         )
                     }
                 }
 
                 "routine" -> RoutineScreen(
+                    routines = uiState.routines,
+                    onToggleRoutine = { id, completed ->
+                        viewModel.toggleRoutine(id, completed)
+                    },
                     onBack = {
                         currentPage = "main"
                     }
+                )
+
+                "matching_game" -> FamilyMemoryMatchingScreen(
+                    onBack = { currentPage = "main"; selectedTab = 1 }
                 )
 
                 "memories" -> MemoryVaultScreen(
@@ -155,6 +196,7 @@ fun UserHomeScreen(userName: String) {
                 )
 
                 "progress" -> ProgressScreen(
+                    stats = uiState.progressStats,
                     onBack = {
                         currentPage = "main"
                     }
@@ -183,12 +225,16 @@ fun UserHomeScreen(userName: String) {
 @Composable
 private fun HomeContent(
     userName: String,
+    routines: List<RoutineItem>,
+    progressStats: com.example.mind_mitra.data.ProgressStats,
+    onOpenGames: () -> Unit,
     onOpenRoutine: () -> Unit,
     onOpenMemories: () -> Unit,
     onOpenMusic: () -> Unit,
     onOpenTalk: () -> Unit,
     onOpenProgress: () -> Unit
 ) {
+    val nextRoutine = routines.firstOrNull { !it.completed }
 
     Column(
         modifier = Modifier
@@ -226,7 +272,11 @@ private fun HomeContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        ReminderCard()
+        ReminderCard(
+            title = nextRoutine?.title ?: "No upcoming activities",
+            time = nextRoutine?.time ?: "Check your routine",
+            onOpenRoutine = onOpenRoutine
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -247,7 +297,8 @@ private fun HomeContent(
             GameCard(
                 title = "Memory Matching",
                 subtitle = "Family photos",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onPlay = onOpenGames
             )
 
             GameCard(
@@ -260,6 +311,7 @@ private fun HomeContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         SchedulePreview(
+            routines = routines,
             onOpenRoutine = onOpenRoutine
         )
 
@@ -284,6 +336,7 @@ private fun HomeContent(
         Spacer(modifier = Modifier.height(20.dp))
 
         ProgressCard(
+            summary = "Memory ${progressStats.memoryGame}% • Routine ${progressStats.routineCompletion}%",
             onClick = onOpenProgress
         )
 
@@ -297,7 +350,11 @@ private fun HomeContent(
 /* ================================================= */
 
 @Composable
-private fun ReminderCard() {
+private fun ReminderCard(
+    title: String,
+    time: String,
+    onOpenRoutine: () -> Unit
+) {
 
     Column(
         modifier = Modifier
@@ -318,7 +375,7 @@ private fun ReminderCard() {
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Cognitive Activity",
+            text = title,
             fontSize = 21.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
@@ -327,7 +384,7 @@ private fun ReminderCard() {
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "10:00 AM  •  15 minutes",
+            text = time,
             fontSize = 14.sp,
             color = SecondaryText
         )
@@ -335,7 +392,8 @@ private fun ReminderCard() {
         Spacer(modifier = Modifier.height(14.dp))
 
         Button(
-            onClick = {},
+            onClick = onOpenRoutine,
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = DeepTeal
@@ -343,8 +401,9 @@ private fun ReminderCard() {
         ) {
 
             Text(
-                text = "Start Activity",
-                fontWeight = FontWeight.SemiBold
+                text = "View Routine",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp
             )
         }
     }
@@ -359,7 +418,8 @@ private fun ReminderCard() {
 private fun GameCard(
     title: String,
     subtitle: String,
-    modifier: Modifier
+    modifier: Modifier,
+    onPlay: () -> Unit = {}
 ) {
 
     Column(
@@ -389,12 +449,14 @@ private fun GameCard(
         Spacer(modifier = Modifier.height(14.dp))
 
         OutlinedButton(
-            onClick = {},
-            modifier = Modifier.fillMaxWidth(),
+            onClick = onPlay,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
             shape = RoundedCornerShape(10.dp)
         ) {
 
-            Text("Play")
+            Text("Play", fontSize = 16.sp)
         }
     }
 }
@@ -406,6 +468,7 @@ private fun GameCard(
 
 @Composable
 private fun SchedulePreview(
+    routines: List<RoutineItem>,
     onOpenRoutine: () -> Unit
 ) {
 
@@ -440,33 +503,22 @@ private fun SchedulePreview(
             }
         }
 
-        ScheduleItem("7:00 AM", "Wake up")
-
-        ScheduleItem(
-            "8:00 AM",
-            "Breakfast",
-            true
-        )
-
-        ScheduleItem(
-            "10:00 AM",
-            "Cognitive Activity"
-        )
-
-        ScheduleItem(
-            "1:00 PM",
-            "Lunch"
-        )
-
-        ScheduleItem(
-            "4:00 PM",
-            "Doctor Appointment"
-        )
-
-        ScheduleItem(
-            "7:30 PM",
-            "Dinner"
-        )
+        if (routines.isEmpty()) {
+            Text(
+                text = "No routine activities yet. Your caregiver can add them.",
+                fontSize = 15.sp,
+                color = SecondaryText,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            routines.take(5).forEach { routine ->
+                ScheduleItem(
+                    time = routine.time,
+                    title = routine.title,
+                    completed = routine.completed
+                )
+            }
+        }
     }
 }
 
@@ -672,6 +724,7 @@ private fun TalkCard(
 
 @Composable
 private fun ProgressCard(
+    summary: String,
     onClick: () -> Unit
 ) {
 
@@ -695,7 +748,7 @@ private fun ProgressCard(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "See your activities, progress and achievements.",
+            text = summary,
             fontSize = 14.sp,
             color = SecondaryText
         )
@@ -719,7 +772,9 @@ private fun ProgressCard(
 /* ================================================= */
 
 @Composable
-private fun GamesContent() {
+private fun GamesContent(
+    onPlayMatching: () -> Unit
+) {
 
     Column(
         modifier = Modifier
@@ -746,18 +801,22 @@ private fun GamesContent() {
         Spacer(modifier = Modifier.height(24.dp))
 
         LargeGameCard(
-            "Family Memory Matching",
-            "Match familiar family photographs."
+            title = "Family Memory Matching",
+            description = "Match familiar family photographs.",
+            onPlay = onPlayMatching,
+            enabled = true
         )
 
         LargeGameCard(
-            "Pattern Recognition",
-            "Find what comes next in the pattern."
+            title = "Pattern Recognition",
+            description = "Find what comes next in the pattern.",
+            enabled = false
         )
 
         LargeGameCard(
-            "Personal Memory Recall",
-            "Answer questions about meaningful memories."
+            title = "Personal Memory Recall",
+            description = "Answer questions about meaningful memories.",
+            enabled = false
         )
 
         Spacer(modifier = Modifier.height(30.dp))
@@ -768,7 +827,9 @@ private fun GamesContent() {
 @Composable
 private fun LargeGameCard(
     title: String,
-    description: String
+    description: String,
+    onPlay: () -> Unit = {},
+    enabled: Boolean = true
 ) {
 
     Column(
@@ -799,12 +860,14 @@ private fun LargeGameCard(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        Text(
-            text = "Open Game →",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = DeepTeal
-        )
+        Button(
+            onClick = onPlay,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+        ) {
+            Text(if (enabled) "Play" else "Coming soon")
+        }
     }
 }
 
@@ -854,19 +917,21 @@ private fun MemoryVaultScreen(
             try {
                 val response =
                     RetrofitClient.apiService.getUserMemories(userId)
-                Log.d("MEMORY_DEBUG", "Fetched ${response.memories.size} memories: ${response.memories}")
+                Log.d("MEMORY_DEBUG", "Fetched ${response.memories.size} memories")
                 memories = response.memories
 
+                // Prefer photo_url from the memories API; fall back to signed-url.
                 val urls = mutableMapOf<String, String>()
-
                 for (memory in response.memories) {
-                    if (!memory.photo_path.isNullOrEmpty()) {
+                    val existing = memory.photo_url
+                    if (!existing.isNullOrEmpty()) {
+                        urls[memory.id] = existing
+                    } else if (!memory.photo_path.isNullOrEmpty()) {
                         try {
                             val photoResponse =
                                 RetrofitClient.apiService.getPhotoUrl(memory.photo_path)
-
                             urls[memory.id] = photoResponse.signed_url
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             // Ignore failed photo URL
                         }
                     }
@@ -1103,7 +1168,7 @@ private fun MemoryVaultScreen(
                                         )
 
                                         Text(
-                                            text = "People: ${memory.people}",
+                                            text = "People: ${memory.people.joinToString(", ")}",
                                             fontSize = 14.sp,
                                             color = SecondaryText
                                         )
@@ -1200,6 +1265,8 @@ private fun MemoryCategoryCard(
 
 @Composable
 private fun RoutineScreen(
+    routines: List<RoutineItem>,
+    onToggleRoutine: (String, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
 
@@ -1238,42 +1305,25 @@ private fun RoutineScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        RoutineCard(
-            "7:00 AM",
-            "Wake up",
-            "Start your morning routine."
-        )
-
-        RoutineCard(
-            "8:00 AM",
-            "Breakfast",
-            "Morning meal.",
-            true
-        )
-
-        RoutineCard(
-            "10:00 AM",
-            "Cognitive Activity",
-            "Spend a few minutes on a cognitive activity."
-        )
-
-        RoutineCard(
-            "1:00 PM",
-            "Lunch",
-            "Afternoon meal."
-        )
-
-        RoutineCard(
-            "4:00 PM",
-            "Doctor Appointment",
-            "Caregiver-entered appointment reminder."
-        )
-
-        RoutineCard(
-            "7:30 PM",
-            "Dinner",
-            "Evening meal."
-        )
+        if (routines.isEmpty()) {
+            Text(
+                text = "No routine items yet.",
+                fontSize = 16.sp,
+                color = SecondaryText
+            )
+        } else {
+            routines.forEach { routine ->
+                RoutineCard(
+                    time = routine.time,
+                    title = routine.title,
+                    description = if (routine.completed) "Completed today" else "Tap to mark done",
+                    completed = routine.completed,
+                    onToggle = {
+                        onToggleRoutine(routine.id, routine.completed)
+                    }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -1285,13 +1335,15 @@ private fun RoutineCard(
     time: String,
     title: String,
     description: String,
-    completed: Boolean = false
+    completed: Boolean = false,
+    onToggle: () -> Unit = {}
 ) {
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
+            .padding(bottom = 12.dp)
+            .clickable { onToggle() },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = SoftMint
@@ -1530,28 +1582,39 @@ private fun RewardCard(
 private fun TalkScreen(
     onBack: () -> Unit
 ) {
+    var input by remember { mutableStateOf("") }
+    var reply by remember { mutableStateOf("Hello! I am Saathi. How can I help you today?") }
+    var isLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun sendMessage(message: String) {
+        val userId = AuthRepository.getCurrentUserId() ?: return
+        if (message.isBlank()) return
+        scope.launch {
+            isLoading = true
+            try {
+                val response = RetrofitClient.apiService.chatWithAgent(
+                    AgentChatRequest(user_id = userId, message = message)
+                )
+                reply = response.message ?: "I'm here to help."
+            } catch (e: Exception) {
+                reply = "Sorry, I couldn't respond right now. Please try again."
+            } finally {
+                isLoading = false
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(22.dp)
     ) {
 
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-
-            Text(
-                text = "← Back",
-                color = DeepTeal,
-                fontWeight = FontWeight.SemiBold
-            )
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+            Text("← Back", color = DeepTeal, fontWeight = FontWeight.SemiBold)
         }
-
-        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = "Talk to MIND MITRA",
@@ -1563,79 +1626,58 @@ private fun TalkScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "You can ask for help, reminders, activities or memories.",
+            text = "Chat with Saathi for help, reminders, or memories.",
             fontSize = 16.sp,
             color = SecondaryText
         )
 
-        Spacer(modifier = Modifier.height(45.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = SoftBlue
-            )
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = SoftBlue)
         ) {
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-
-                Text(
-                    text = "Voice interaction",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Press the button when voice interaction is connected.",
-                    fontSize = 14.sp,
-                    color = SecondaryText
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = {},
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DeepTeal
-                    )
-                ) {
-
-                    Text(
-                        text = "🎙  Tap to Talk",
-                        fontSize = 16.sp
-                    )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(reply, fontSize = 16.sp, color = DarkText, lineHeight = 24.sp)
+                if (isLoading) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CircularProgressIndicator(color = DeepTeal)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Try asking:",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = DarkText
+        OutlinedTextField(
+            value = input,
+            onValueChange = { input = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Type your message") },
+            singleLine = false
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        SuggestionCard("Show me my daughter's photo")
+        Button(
+            onClick = {
+                sendMessage(input.trim())
+                input = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading && input.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = DeepTeal)
+        ) {
+            Text("Send to Saathi", fontSize = 16.sp)
+        }
 
-        SuggestionCard("What is my next activity?")
+        Spacer(modifier = Modifier.height(20.dp))
 
-        SuggestionCard("Recommend a game")
-
-        SuggestionCard("Play my favourite music")
+        Text("Try asking:", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
+        Spacer(modifier = Modifier.height(12.dp))
+        SuggestionCard("What is my next activity?", onClick = { sendMessage("What is my next activity?") })
+        SuggestionCard("Recommend a game", onClick = { sendMessage("Recommend a game") })
+        SuggestionCard("Show me a family memory", onClick = { sendMessage("Show me a family memory") })
 
         Spacer(modifier = Modifier.height(30.dp))
     }
@@ -1644,13 +1686,15 @@ private fun TalkScreen(
 
 @Composable
 private fun SuggestionCard(
-    text: String
+    text: String,
+    onClick: () -> Unit = {}
 ) {
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp),
+            .padding(bottom = 10.dp)
+            .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = SoftMint
@@ -1673,6 +1717,7 @@ private fun SuggestionCard(
 
 @Composable
 private fun ProgressScreen(
+    stats: com.example.mind_mitra.data.ProgressStats,
     onBack: () -> Unit
 ) {
 
@@ -1713,29 +1758,29 @@ private fun ProgressScreen(
 
         ProgressItem(
             "Memory Game",
-            "82%"
+            "${stats.memoryGame}%"
         )
 
         ProgressItem(
             "Pattern Game",
-            "74%"
+            "${stats.patternGame}%"
         )
 
         ProgressItem(
             "Recall Game",
-            "79%"
+            "${stats.recallGame}%"
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
         SummaryCard(
             "Activities Completed",
-            "12"
+            "${stats.activitiesCompleted}"
         )
 
         SummaryCard(
             "Routine Completion",
-            "85%"
+            "${stats.routineCompletion}%"
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -1862,7 +1907,8 @@ private fun MoreContent(
     onOpenRoutine: () -> Unit,
     onOpenMusic: () -> Unit,
     onOpenTalk: () -> Unit,
-    onOpenProgress: () -> Unit
+    onOpenProgress: () -> Unit,
+    onLogout: () -> Unit
 ) {
 
     Column(
@@ -1873,7 +1919,7 @@ private fun MoreContent(
     ) {
 
         Text(
-            text = "More",
+            text = "Settings",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText
@@ -1900,6 +1946,19 @@ private fun MoreContent(
             "Progress",
             onOpenProgress
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedButton(
+            onClick = {
+                AuthRepository.logout()
+                onLogout()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text("Log out", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = DeepTeal)
+        }
 
         Spacer(modifier = Modifier.height(30.dp))
     }

@@ -30,9 +30,9 @@ def _with_photo_url(data: dict) -> dict:
     return data
 
 
-# GET all memories across all users (admin/debug use)
+# GET all memories across all users (authenticated admin/debug use)
 @router.get("/")
-def get_memories():
+def get_memories(caller_uid: str = Depends(get_current_uid)):
     memories_ref = db.collection_group("memories").stream()
 
     memories = []

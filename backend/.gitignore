@@ -1,9 +1,15 @@
 # Python virtual environment
 venv/
+.venv/
+.venv-check/
+
+# Env / secrets
+.env
+*.env
 
 # Firebase private credentials
 serviceAccountKey.json
 
 # Python cache
 __pycache__/
-*.pyc.env
+*.pyc

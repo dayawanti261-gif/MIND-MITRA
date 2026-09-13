@@ -22,6 +22,14 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Single backend URL for all Retrofit calls (Railway production).
+        // For a local emulator backend, change to "http://10.0.2.2:8000/"
+        buildConfigField(
+            "String",
+            "BASE_URL",
+            "\"https://mind-mitra-production.up.railway.app/\""
+        )
     }
 
     buildTypes {
@@ -41,6 +49,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -69,6 +78,10 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // ViewModel + WorkManager
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))

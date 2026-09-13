@@ -1,6 +1,9 @@
-package com.example.mind_mitra.User
+package com.example.mind_mitra.user
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import com.example.mind_mitra.network.RetrofitClient
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
 import com.example.mind_mitra.data.MemoryItem
@@ -78,6 +81,33 @@ class UserHomeViewModel : ViewModel() {
             },
             onError = { }
         )
+
+        loadGameProgressFromApi(userId)
+    }
+
+    private fun loadGameProgressFromApi(userId: String) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.apiService.getGameProgress(userId)
+                val progress = response.game_progress
+                val memory = progress.find { it.game_id == "family_memory_matching" }
+                    ?.accuracy?.toInt() ?: _uiState.value.progressStats.memoryGame
+                val pattern = progress.find { it.game_id == "pattern_recognition" }
+                    ?.accuracy?.toInt() ?: _uiState.value.progressStats.patternGame
+                val recall = progress.find { it.game_id == "personal_memory_recall" }
+                    ?.accuracy?.toInt() ?: _uiState.value.progressStats.recallGame
+                _uiState.value = _uiState.value.copy(
+                    progressStats = _uiState.value.progressStats.copy(
+                        memoryGame = memory,
+                        patternGame = pattern,
+                        recallGame = recall,
+                        activitiesCompleted = progress.size
+                    )
+                )
+            } catch (_: Exception) {
+                // Keep Firestore defaults if API unavailable
+            }
+        }
     }
 
     fun getReminders(): List<Map<String, Any>> {
@@ -101,7 +131,7 @@ class UserHomeViewModel : ViewModel() {
                 "title" to m.title,
                 "category" to m.category,
                 "description" to m.description,
-                "imageUrl" to m.imageUrl
+                "photo_path" to m.photo_path
             )
         }
     }

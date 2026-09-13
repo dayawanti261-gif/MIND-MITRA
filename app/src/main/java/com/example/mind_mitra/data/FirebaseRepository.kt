@@ -41,7 +41,7 @@ data class MemoryItem(
     val title: String = "",
     val category: String = "",
     val description: String = "",
-    val imageUrl: String = "",
+    val photo_path: String = "",
     val people: List<String> = emptyList()
 ) {
     operator fun get(key: String): Any? = when (key) {
@@ -49,7 +49,7 @@ data class MemoryItem(
         "title" -> title
         "category" -> category
         "description" -> description
-        "imageUrl" -> imageUrl
+        "photo_path" -> photo_path
         "people" -> people
         else -> null
     }
@@ -103,6 +103,25 @@ object FirebaseRepository {
             .addOnFailureListener { onError(it) }
     }
 
+    fun saveCaregiverProfile(
+        userId: String,
+        email: String,
+        name: String = "Caregiver",
+        onSuccess: () -> Unit = {},
+        onError: (Exception) -> Unit = {}
+    ) {
+        val profile = mapOf(
+            "uid" to userId,
+            "name" to name,
+            "email" to email,
+            "role" to "Caregiver"
+        )
+        db.collection("users").document(userId)
+            .set(profile, SetOptions.merge())
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it) }
+    }
+
     fun getUserProfile(
         userId: String = AuthRepository.getCurrentUserId() ?: "",
         onSuccess: (Map<String, Any>?) -> Unit = {},
@@ -147,7 +166,15 @@ object FirebaseRepository {
         val batch = db.batch()
 
         val caregiverRef = db.collection("users").document(caregiverId)
-        batch.set(caregiverRef, mapOf("linkedPatientId" to patientId), SetOptions.merge())
+        batch.set(
+            caregiverRef,
+            mapOf(
+                "linkedPatientId" to patientId,
+                "role" to "Caregiver",
+                "email" to (AuthRepository.getCurrentUserEmail() ?: "")
+            ),
+            SetOptions.merge()
+        )
 
         val patientRef = db.collection("users").document(patientId)
         batch.set(patientRef, mapOf("linkedCaregiverId" to caregiverId), SetOptions.merge())
@@ -507,7 +534,7 @@ object FirebaseRepository {
         title: String,
         category: String = "",
         description: String,
-        imageUrl: String = "",
+        photo_path: String = "",
         people: List<String> = emptyList(),
         onSuccess: () -> Unit = {},
         onError: (Exception) -> Unit = {}
@@ -519,7 +546,7 @@ object FirebaseRepository {
             title = title,
             category = category,
             description = description,
-            imageUrl = imageUrl,
+            photo_path = photo_path,
             people = people
         )
         docRef.set(memory)

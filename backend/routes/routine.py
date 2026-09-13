@@ -37,7 +37,12 @@ def get_routine(user_id: str, caller_uid: str = Depends(get_current_uid)):
 
 # GET one routine item
 @router.get("/{user_id}/{routine_id}")
-def get_routine_item(user_id: str, routine_id: str):
+def get_routine_item(
+    user_id: str,
+    routine_id: str,
+    caller_uid: str = Depends(get_current_uid),
+):
+    assert_can_write(caller_uid, user_id)
     routine_ref = db.collection("users").document(user_id) \
         .collection("routines").document(routine_id)
     routine = routine_ref.get()

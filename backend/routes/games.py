@@ -13,9 +13,9 @@ router = APIRouter(
 # "game_progress" collection.
 
 
-# GET all game progress across all users (admin/debug use)
+# GET all game progress across all users (authenticated admin/debug use)
 @router.get("/progress")
-def get_all_game_progress():
+def get_all_game_progress(caller_uid: str = Depends(get_current_uid)):
     progress_ref = db.collection_group("gameProgress").stream()
 
     progress_list = []
@@ -55,8 +55,26 @@ def get_game_progress(user_id: str, caller_uid: str = Depends(get_current_uid)):
 def save_game_progress(progress: GameProgress, caller_uid: str = Depends(get_current_uid)):
     assert_can_write(caller_uid, progress.user_id)   # NEW
 
-    progress_ref = db.collection("users").document(progress.user_id) \
-        .collection("gameProgress").document()
+    # Upsert latest progress doc per game_id when one already exists.
+    existing = (
+        db.collection("users")
+        .document(progress.user_id)
+        .collection("gameProgress")
+        .where("game_id", "==", progress.game_id)
+        .limit(1)
+        .stream()
+    )
+    progress_ref = None
+    for item in existing:
+        progress_ref = item.reference
+        break
+    if progress_ref is None:
+        progress_ref = (
+            db.collection("users")
+            .document(progress.user_id)
+            .collection("gameProgress")
+            .document()
+        )
 
     progress_ref.set({
         "game_id": progress.game_id,

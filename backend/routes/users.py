@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from models.schemas import User
 from services.firebase import db
+from services.auth import get_current_uid, assert_can_write
 
 router = APIRouter(
     prefix="/users",
@@ -8,9 +9,9 @@ router = APIRouter(
 )
 
 
-# GET all users
+# GET all users (authenticated)
 @router.get("/")
-def get_users():
+def get_users(caller_uid: str = Depends(get_current_uid)):
     users_ref = db.collection("users").stream()
 
     users = []
@@ -26,7 +27,8 @@ def get_users():
 
 # GET one user
 @router.get("/{user_id}")
-def get_user(user_id: str):
+def get_user(user_id: str, caller_uid: str = Depends(get_current_uid)):
+    assert_can_write(caller_uid, user_id)
     user_ref = db.collection("users").document(user_id)
     user = user_ref.get()
 
@@ -40,7 +42,8 @@ def get_user(user_id: str):
 
 # CREATE a user
 @router.post("/")
-def create_user(user: User):
+def create_user(user: User, caller_uid: str = Depends(get_current_uid)):
+    assert_can_write(caller_uid, user.user_id)
     user_ref = db.collection("users").document(user.user_id)
 
     # CHANGED: was a plain .set(), which overwrites the whole document.

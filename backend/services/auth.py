@@ -42,3 +42,16 @@ def assert_can_write(caller_uid: str, target_user_id: str) -> None:
 
     if caller_doc.to_dict().get("linkedPatientId") != target_user_id:
         raise HTTPException(status_code=403, detail="Not authorized for this patient")
+
+
+def assert_can_access_photo_path(caller_uid: str, file_path: str) -> None:
+    """Signed URLs may only be issued for the caller's own or linked patient's media."""
+    if not file_path or not file_path.startswith("memories/"):
+        raise HTTPException(status_code=400, detail="Invalid photo path")
+
+    parts = file_path.split("/")
+    if len(parts) < 2 or not parts[1]:
+        raise HTTPException(status_code=400, detail="Invalid photo path")
+
+    owner_id = parts[1]
+    assert_can_write(caller_uid, owner_id)

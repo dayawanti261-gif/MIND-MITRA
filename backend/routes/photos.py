@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from services.photo_storage import upload_photo, get_signed_url
 from services.firebase import db
-from services.auth import get_current_uid, assert_can_write
+from services.auth import get_current_uid, assert_can_write, assert_can_access_photo_path
 
 router = APIRouter(prefix="/photos", tags=["Photos"])
 
@@ -55,13 +55,18 @@ def upload_photo_api(
     memory_ref = db.collection("users").document(user_id) \
         .collection("memories").document()
 
+    # Store people as a list to match Memory schema / JSON memories API.
+    people_list = [
+        p.strip() for p in (people or "").split(",") if p.strip()
+    ]
+
     memory_ref.set({
         "id": memory_ref.id,
         "title": title,
         "description": description,
         "category": category,
         "photo_path": result["file_path"],
-        "people": people,
+        "people": people_list,
         "place": place,
         "year": year
     })
@@ -77,6 +82,7 @@ def upload_photo_api(
 
 @router.get("/signed-url")
 def get_photo_url(file_path: str, caller_uid: str = Depends(get_current_uid)):
+    assert_can_access_photo_path(caller_uid, file_path)
     result = get_signed_url(file_path)
 
     return {

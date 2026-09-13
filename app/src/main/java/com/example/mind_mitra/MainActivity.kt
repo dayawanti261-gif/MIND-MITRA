@@ -1,8 +1,6 @@
 package com.example.mind_mitra
 
-import com.google.firebase.auth.FirebaseAuth
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -16,8 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 import com.example.mind_mitra.auth.LoginScreen
 import com.example.mind_mitra.auth.RoleSelectionScreen
@@ -27,112 +23,102 @@ import com.example.mind_mitra.caregiver.CaregiverDashboardScreen
 import com.example.mind_mitra.caregiver.ConnectPatientScreen
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
-import com.example.mind_mitra.network.RetrofitClient
-// NOTE: package-case conflict — see explanation below the code.
-// Using the lowercase "user" package here; change to "User" if that's
-// what your project's folder is actually named.
+import com.example.mind_mitra.ui.theme.MINDMITRATheme
 import com.example.mind_mitra.user.UserHomeScreen
-
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        FirebaseAuth.getInstance().currentUser?.getIdToken(false)
-            ?.addOnSuccessListener { result ->
-                Log.d("TOKEN_DEBUG", "ID TOKEN: ${result.token}")
-            }
-
-        // Dev/debug check that the backend API is reachable.
-        // Safe to leave in during development; consider removing
-        // (or wrapping in a BuildConfig.DEBUG check) before release.
-        testBackendConnection()
-
         setContent {
-            MindMitraApp()
-        }
-    }
-
-    private fun testBackendConnection() {
-        lifecycleScope.launch {
-            try {
-                val response = RetrofitClient.apiService.getUserMemories("pink-user")
-                Log.d("MIND_MITRA_API", "Memories: ${response.memories}")
-            } catch (e: Exception) {
-                Log.e("MIND_MITRA_API", "API Error: ${e.message}", e)
+            MINDMITRATheme {
+                MindMitraApp()
             }
         }
     }
 }
 
+private fun resolveRole(profile: Map<String, Any>?): String {
+    if (profile == null) return "User"
+    val explicit = profile["role"] as? String
+    if (!explicit.isNullOrBlank()) return explicit
+    return if (profile["linkedPatientId"] != null) "Caregiver" else "User"
+}
 
 @Composable
 fun MindMitraApp() {
 
-    var currentScreen by remember {
-        mutableStateOf("checking")
+    var currentScreen by remember { mutableStateOf("checking") }
+    var selectedRole by remember { mutableStateOf("") }
+    var userName by remember { mutableStateOf("") }
+    var caregiverName by remember { mutableStateOf("Caregiver") }
+
+    fun handleLogout() {
+        AuthRepository.logout()
+        selectedRole = ""
+        userName = ""
+        caregiverName = "Caregiver"
+        currentScreen = "welcome"
     }
 
-    var selectedRole by remember {
-        mutableStateOf("")
-    }
-
-    var userName by remember {
-        mutableStateOf("")
-    }
-
-
-    // Check Firebase session when app starts
-    LaunchedEffect(Unit) {
-
-        val userId = AuthRepository.getCurrentUserId()
-
-        if (userId == null) {
-
-            // No logged-in user
-            currentScreen = "welcome"
-
-        } else {
-
-            // User is already logged in
-            FirebaseRepository.getUserProfile(
-                userId = userId,
-
-                onSuccess = { profile ->
-
-                    if (profile != null) {
-
-                        // Profile already exists
-                        selectedRole = "User"
-                        userName = profile["name"] as? String ?: ""
-                        currentScreen = "user_home"
-
+    fun routeFromProfile(profile: Map<String, Any>?, userId: String) {
+        if (profile == null) {
+            FirebaseRepository.getLinkedPatientId(
+                caregiverId = userId,
+                onSuccess = { patientId ->
+                    if (patientId != null) {
+                        selectedRole = "Caregiver"
+                        currentScreen = "caregiver_home"
                     } else {
-
-                        // Logged in but profile not created yet
                         selectedRole = "User"
                         currentScreen = "user_profile"
                     }
                 },
-
                 onError = {
-                    // If Firebase check fails, show welcome
-                    currentScreen = "welcome"
+                    selectedRole = "User"
+                    currentScreen = "user_profile"
                 }
+            )
+            return
+        }
+
+        val role = resolveRole(profile)
+        selectedRole = role
+        val name = profile["name"] as? String ?: ""
+
+        when (role) {
+            "Caregiver" -> {
+                caregiverName = name.ifBlank { "Caregiver" }
+                val linkedPatientId = profile["linkedPatientId"] as? String
+                currentScreen =
+                    if (linkedPatientId != null) "caregiver_home"
+                    else "connect_patient"
+            }
+
+            else -> {
+                userName = name
+                currentScreen = "user_home"
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val userId = AuthRepository.getCurrentUserId()
+        if (userId == null) {
+            currentScreen = "welcome"
+        } else {
+            FirebaseRepository.getUserProfile(
+                userId = userId,
+                onSuccess = { profile -> routeFromProfile(profile, userId) },
+                onError = { currentScreen = "welcome" }
             )
         }
     }
 
-
     when (currentScreen) {
 
-        // --------------------------------
-        // CHECKING SESSION
-        // --------------------------------
-
         "checking" -> {
-
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -141,34 +127,18 @@ fun MindMitraApp() {
             }
         }
 
-
-        // --------------------------------
-        // WELCOME
-        // --------------------------------
-
         "welcome" -> {
-
             WelcomeScreen(
-                onGetStarted = {
-                    currentScreen = "role_selection"
-                }
+                onGetStarted = { currentScreen = "role_selection" }
             )
         }
 
-
-        // --------------------------------
-        // ROLE SELECTION
-        // --------------------------------
-
         "role_selection" -> {
-
             RoleSelectionScreen(
-
                 onUserSelected = {
                     selectedRole = "User"
                     currentScreen = "login"
                 },
-
                 onCaregiverSelected = {
                     selectedRole = "Caregiver"
                     currentScreen = "login"
@@ -176,104 +146,57 @@ fun MindMitraApp() {
             )
         }
 
-
-        // --------------------------------
-        // LOGIN / SIGN UP
-        // --------------------------------
-
         "login" -> {
-
             LoginScreen(
-
                 role = selectedRole,
-
-                onBack = {
-                    currentScreen = "role_selection"
-                },
-
+                onBack = { currentScreen = "role_selection" },
                 onLoginSuccess = {
-
+                    val userId = AuthRepository.getCurrentUserId()
+                    if (userId == null) {
+                        currentScreen = if (selectedRole == "User") "user_profile" else "connect_patient"
+                        return@LoginScreen
+                    }
                     if (selectedRole == "User") {
-
-                        val userId = AuthRepository.getCurrentUserId()
-
-                        if (userId != null) {
-
-                            FirebaseRepository.getUserProfile(
-                                userId = userId,
-
-                                onSuccess = { profile ->
-
-                                    if (profile != null) {
-                                        // Existing user
-                                        userName = profile["name"] as? String ?: ""
-                                        currentScreen = "user_home"
-                                    } else {
-                                        // New user without profile
-                                        currentScreen = "user_profile"
-                                    }
-                                },
-
-                                onError = {
+                        FirebaseRepository.getUserProfile(
+                            userId = userId,
+                            onSuccess = { profile ->
+                                if (profile != null) {
+                                    userName = profile["name"] as? String ?: ""
+                                    currentScreen = "user_home"
+                                } else {
                                     currentScreen = "user_profile"
                                 }
-                            )
-
-                        } else {
-                            currentScreen = "user_profile"
-                        }
-
+                            },
+                            onError = { currentScreen = "user_profile" }
+                        )
                     } else {
-
-                        val caregiverId = AuthRepository.getCurrentUserId()
-
-                        if (caregiverId == null) {
-
-                            currentScreen = "connect_patient"
-
-                        } else {
-
-                            FirebaseRepository.getLinkedPatientId(
-                                caregiverId = caregiverId,
-
-                                onSuccess = { patientId ->
-                                    currentScreen =
-                                        if (patientId != null)
-                                            "caregiver_home"
-                                        else
-                                            "connect_patient"
-                                },
-
-                                onError = {
-                                    currentScreen = "connect_patient"
-                                }
-                            )
-                        }
+                        FirebaseRepository.getUserProfile(
+                            userId = userId,
+                            onSuccess = { profile -> routeFromProfile(profile, userId) },
+                            onError = { currentScreen = "connect_patient" }
+                        )
                     }
                 },
-
                 onSignUpSuccess = {
-
+                    val userId = AuthRepository.getCurrentUserId()
                     if (selectedRole == "User") {
-                        // New user must complete profile
                         currentScreen = "user_profile"
+                    } else if (userId != null) {
+                        FirebaseRepository.saveCaregiverProfile(
+                            userId = userId,
+                            email = AuthRepository.getCurrentUserEmail() ?: "",
+                            onSuccess = { currentScreen = "connect_patient" },
+                            onError = { currentScreen = "connect_patient" }
+                        )
                     } else {
-                        // New caregiver has no linked patient yet
                         currentScreen = "connect_patient"
                     }
                 }
             )
         }
 
-
-        // --------------------------------
-        // USER PROFILE
-        // --------------------------------
-
         "user_profile" -> {
-
             UserProfileScreen(
-
                 onProfileCompleted = { name ->
                     userName = name
                     currentScreen = "user_home"
@@ -281,41 +204,23 @@ fun MindMitraApp() {
             )
         }
 
-
-        // --------------------------------
-        // USER HOME
-        // --------------------------------
-
         "user_home" -> {
-
             UserHomeScreen(
-                userName = userName
+                userName = userName,
+                onLogout = { handleLogout() }
             )
         }
-
-
-        // --------------------------------
-        // CONNECT PATIENT
-        // --------------------------------
 
         "connect_patient" -> {
-
             ConnectPatientScreen(
-                onConnected = {
-                    currentScreen = "caregiver_home"
-                }
+                onConnected = { currentScreen = "caregiver_home" }
             )
         }
 
-
-        // --------------------------------
-        // CAREGIVER HOME
-        // --------------------------------
-
         "caregiver_home" -> {
-
             CaregiverDashboardScreen(
-                caregiverName = "Caregiver"
+                caregiverName = caregiverName,
+                onLogout = { handleLogout() }
             )
         }
     }

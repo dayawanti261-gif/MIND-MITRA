@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function isPatient(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isLinkedCaregiver(patientId) {
+      return isSignedIn()
+        && userDoc(request.auth.uid).data.linkedPatientId == patientId;
+    }
+
+    function canAccessPatient(patientId) {
+      return isPatient(patientId) || isLinkedCaregiver(patientId);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || canAccessPatient(userId));
+      allow create, update: if isSignedIn() && (request.auth.uid == userId || isLinkedCaregiver(userId));
+      allow delete: if false;
+
+      match /{subcollection}/{docId} {
+        allow read, write: if canAccessPatient(userId);
+      }
+    }
+
+    match /test/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

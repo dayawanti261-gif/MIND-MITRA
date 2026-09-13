@@ -1,6 +1,8 @@
 package com.example.mind_mitra.caregiver
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -29,29 +31,63 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 
 import com.example.mind_mitra.data.AuthRepository
 import com.example.mind_mitra.data.FirebaseRepository
-import com.example.mind_mitra.data.ApiClient
-import com.example.mind_mitra.data.MemoryRequest
-import com.example.mind_mitra.data.RoutineRequest
+import com.example.mind_mitra.network.MemoryData
+import com.example.mind_mitra.network.MemoryRequest
+import com.example.mind_mitra.network.PhotoUploadHelper
+import com.example.mind_mitra.network.RetrofitClient
+import com.example.mind_mitra.network.RoutineRequest
+import com.example.mind_mitra.ui.theme.MindBorder
+import com.example.mind_mitra.ui.theme.MindCard
+import com.example.mind_mitra.ui.theme.MindDarkText
+import com.example.mind_mitra.ui.theme.MindDeepTeal
+import com.example.mind_mitra.ui.theme.MindErrorBg
+import com.example.mind_mitra.ui.theme.MindErrorText
+import com.example.mind_mitra.ui.theme.MindSecondaryText
+import com.example.mind_mitra.ui.theme.MindSoftMint
+import com.example.mind_mitra.ui.theme.MindSuccessBg
+import com.example.mind_mitra.ui.theme.MindSuccessText
+import com.example.mind_mitra.ui.theme.MindWarmWhite
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
+import android.net.Uri
+import java.io.File
+import java.io.FileOutputStream
 
-private val DeepTeal = Color(0xFF146C68)
-private val WarmWhite = Color(0xFFF9FBFA)
-private val SoftMint = Color(0xFFE8F5F2)
-private val DarkText = Color(0xFF183331)
-private val SecondaryText = Color(0xFF61716F)
-private val LightCard = Color.White
+private val DeepTeal = MindDeepTeal
+private val WarmWhite = MindWarmWhite
+private val SoftMint = MindSoftMint
+private val DarkText = MindDarkText
+private val SecondaryText = MindSecondaryText
+private val LightCard = MindCard
+
+private val CardRadius = 20.dp
+private val SectionGap = 20.dp
+private val TouchMinHeight = 56.dp
 
 @Composable
 fun CaregiverDashboardScreen(
-    caregiverName: String
+    caregiverName: String,
+    onLogout: () -> Unit = {}
 ) {
     var currentTab by remember { mutableStateOf("home") }
     var currentSection by remember { mutableStateOf("dashboard") }
@@ -234,27 +270,58 @@ fun CaregiverDashboardScreen(
             "memories" -> {
 
                 var memoryList by remember {
-                    mutableStateOf<List<Map<String, Any>>>(emptyList())
+                    mutableStateOf<List<MemoryData>>(emptyList())
                 }
 
                 var showAddForm by remember { mutableStateOf(false) }
                 var message by remember { mutableStateOf("") }
+                var isLoading by remember { mutableStateOf(true) }
+                var isError by remember { mutableStateOf(false) }
+                val scope = rememberCoroutineScope()
 
                 val caregiverId = AuthRepository.getCurrentUserId()
 
                 fun loadMemories() {
                     if (caregiverId == null) {
                         message = "Caregiver session not found."
+                        isLoading = false
+                        isError = true
                         return
                     }
 
-                    FirebaseRepository.getConnectedPatientMemories(
+                    isLoading = true
+                    isError = false
+
+                    FirebaseRepository.getLinkedPatientId(
                         caregiverId = caregiverId,
-                        onSuccess = {
-                            memoryList = it
+                        onSuccess = { patientId ->
+                            if (patientId == null) {
+                                memoryList = emptyList()
+                                message = "No patient connected."
+                                isLoading = false
+                                isError = true
+                                return@getLinkedPatientId
+                            }
+                            scope.launch {
+                                try {
+                                    val response =
+                                        RetrofitClient.apiService.getUserMemories(patientId)
+                                    memoryList = response.memories
+                                    message = ""
+                                    isError = false
+                                } catch (e: Exception) {
+                                    message = e.message
+                                        ?: "Unable to load memories."
+                                    isError = true
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
                         },
                         onError = {
                             message = it.message ?: "Unable to load memories."
+                            isLoading = false
+                            isError = true
                         }
                     )
                 }
@@ -265,72 +332,127 @@ fun CaregiverDashboardScreen(
 
                 CaregiverSectionScreen(
                     title = "Memory Vault",
-                    subtitle = "Manage meaningful memories for the elderly user.",
+                    subtitle = "Add and review meaningful memories for your loved one.",
                     onBack = { currentSection = "dashboard" }
                 ) {
 
-                    if (memoryList.isEmpty()) {
-                        Text(
-                            text = "No memories added yet.",
-                            color = SecondaryText
-                        )
-                    } else {
-
-                        memoryList.forEach {
-
-                            SectionInfoCard(
-                                title =
-                                    it["title"] as? String
-                                        ?: "Untitled Memory",
-                                description =
-                                    it["description"] as? String
-                                        ?: "No description"
+                    // ---- Add Memory section ----
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(CardRadius),
+                        colors = CardDefaults.cardColors(containerColor = SoftMint),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp)) {
+                            Text(
+                                text = "Add a memory",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DarkText
                             )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Save a photo and story your loved one can revisit.",
+                                fontSize = 15.sp,
+                                color = SecondaryText,
+                                lineHeight = 22.sp
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Button(
+                                onClick = {
+                                    showAddForm = !showAddForm
+                                    message = ""
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(TouchMinHeight),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = DeepTeal
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    text = if (showAddForm) "Close form" else "Add Memory",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Button(
-                        onClick = {
-                            showAddForm = !showAddForm
-                            message = ""
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = DeepTeal
-                        )
-                    ) {
-                        Text(
-                            if (showAddForm)
-                                "Cancel"
-                            else
-                                "Add Memory"
-                        )
-                    }
-
                     if (showAddForm) {
-
                         Spacer(modifier = Modifier.height(16.dp))
-
                         AddMemoryForm(
                             onSaved = {
                                 showAddForm = false
                                 message = "Memory added successfully."
+                                isError = false
                                 loadMemories()
                             },
                             onError = {
                                 message = it
+                                isError = true
                             }
                         )
                     }
 
                     if (message.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
+                        Spacer(modifier = Modifier.height(14.dp))
+                        StatusBanner(
                             text = message,
-                            color = SecondaryText
+                            isError = isError && !message.contains("success", ignoreCase = true)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(SectionGap))
+                    HorizontalDivider(color = MindBorder)
+                    Spacer(modifier = Modifier.height(SectionGap))
+
+                    // ---- Saved memories section ----
+                    Text(
+                        text = "Saved memories",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkText
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Memories already shared with the Memory Vault.",
+                        fontSize = 15.sp,
+                        color = SecondaryText
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    when {
+                        isLoading -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator(color = DeepTeal)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Loading memories…",
+                                    fontSize = 16.sp,
+                                    color = SecondaryText
+                                )
+                            }
+                        }
+
+                        memoryList.isEmpty() -> {
+                            EmptyStateCard(
+                                title = "No memories yet",
+                                body = "Tap Add Memory above to save the first photo and story."
+                            )
+                        }
+
+                        else -> {
+                            memoryList.forEach { memory ->
+                                CaregiverMemoryCard(memory = memory)
+                            }
+                        }
                     }
                 }
             }
@@ -932,7 +1054,8 @@ fun CaregiverDashboardScreen(
                     CaregiverMoreTab(
                         onSectionSelected = {
                             currentSection = it
-                        }
+                        },
+                        onLogout = onLogout
                     )
                 }
             }
@@ -1142,13 +1265,26 @@ private fun AddMemoryForm(
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var people by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Family") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+    }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(1f),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
         ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(18.dp)
     ) {
 
@@ -1193,6 +1329,23 @@ private fun AddMemoryForm(
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
+                value = category,
+                onValueChange = {
+                    category = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Category")
+                },
+                placeholder = {
+                    Text("Family, Childhood, Places, …")
+                },
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
                 value = people,
                 onValueChange = {
                     people = it
@@ -1206,6 +1359,24 @@ private fun AddMemoryForm(
                 },
                 singleLine = true
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { imagePicker.launch("image/*") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SoftMint,
+                    contentColor = DarkText
+                )
+            ) {
+                Text(
+                    if (selectedImageUri != null)
+                        "Photo selected — tap to change"
+                    else
+                        "Select Photo (optional)"
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -1235,6 +1406,8 @@ private fun AddMemoryForm(
                             .map { it.trim() }
                             .filter { it.isNotEmpty() }
 
+                    if (isSaving) return@Button
+
                     FirebaseRepository.getLinkedPatientId(
                         caregiverId = caregiverId,
 
@@ -1243,29 +1416,50 @@ private fun AddMemoryForm(
                             if (patientId == null) {
                                 onError("No patient connected.")
                             } else {
-
-                                // CHANGED: was FirebaseRepository.addMemory
-                                // (direct Firestore write). Now goes through
-                                // the backend, which verifies the caller's
-                                // Firebase ID token and confirms they're
-                                // actually this patient's linked caregiver
-                                // before writing anything.
                                 scope.launch {
+                                    isSaving = true
                                     try {
-                                        ApiClient.service.addMemory(
-                                            MemoryRequest(
-                                                user_id = patientId,
-                                                title = title.trim(),
-                                                description = description.trim(),
-                                                people = peopleList
+                                        val imageUri = selectedImageUri
+                                        if (imageUri != null) {
+                                            val file = copyUriToCacheFile(
+                                                context,
+                                                imageUri
                                             )
-                                        )
+                                            RetrofitClient.apiService.uploadPhoto(
+                                                userId = PhotoUploadHelper.textPart(patientId),
+                                                title = PhotoUploadHelper.textPart(title.trim()),
+                                                description = PhotoUploadHelper.textPart(
+                                                    description.trim()
+                                                ),
+                                                people = PhotoUploadHelper.textPart(
+                                                    peopleList.joinToString(", ")
+                                                ),
+                                                category = PhotoUploadHelper.textPart(
+                                                    category.trim()
+                                                ),
+                                                file = PhotoUploadHelper.imagePart(file)
+                                            )
+                                        } else {
+                                            RetrofitClient.apiService.addMemory(
+                                                MemoryRequest(
+                                                    user_id = patientId,
+                                                    title = title.trim(),
+                                                    description = description.trim(),
+                                                    category = category.trim()
+                                                        .ifEmpty { null },
+                                                    photo_path = null,
+                                                    people = peopleList.ifEmpty { null }
+                                                )
+                                            )
+                                        }
                                         onSaved()
                                     } catch (e: Exception) {
                                         onError(
                                             e.message
                                                 ?: "Failed to add memory."
                                         )
+                                    } finally {
+                                        isSaving = false
                                     }
                                 }
                             }
@@ -1280,14 +1474,34 @@ private fun AddMemoryForm(
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DeepTeal
                 )
             ) {
-                Text("Save Memory")
+                Text(if (isSaving) "Saving…" else "Save Memory")
             }
         }
     }
+}
+
+private fun copyUriToCacheFile(
+    context: android.content.Context,
+    uri: Uri
+): File {
+    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+    val ext = when {
+        mime.contains("png") -> "png"
+        mime.contains("webp") -> "webp"
+        else -> "jpg"
+    }
+    val file = File(context.cacheDir, "memory_upload_${System.currentTimeMillis()}.$ext")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        FileOutputStream(file).use { output ->
+            input.copyTo(output)
+        }
+    } ?: throw IllegalStateException("Unable to read selected image.")
+    return file
 }
 
 
@@ -1395,7 +1609,7 @@ private fun AddRoutineForm(
                                 // the backend's routine/ endpoint.
                                 scope.launch {
                                     try {
-                                        ApiClient.service.addRoutine(
+                                        RetrofitClient.apiService.addRoutine(
                                             RoutineRequest(
                                                 user_id = patientId,
                                                 title = title.trim(),
@@ -1539,7 +1753,7 @@ private fun AddReminderForm(
                                 // collection before.
                                 scope.launch {
                                     try {
-                                        ApiClient.service.addRoutine(
+                                        RetrofitClient.apiService.addRoutine(
                                             RoutineRequest(
                                                 user_id = patientId,
                                                 title = title.trim(),
@@ -1590,16 +1804,16 @@ private fun CaregiverHomeTab(
 
     Text(
         "Caregiver Dashboard",
-        fontSize = 28.sp,
+        fontSize = 30.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
 
-    Spacer(modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
     Text(
         "Welcome, $caregiverName",
-        fontSize = 16.sp,
+        fontSize = 18.sp,
         color = SecondaryText
     )
 
@@ -1607,19 +1821,18 @@ private fun CaregiverHomeTab(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SoftMint
-        )
+        shape = RoundedCornerShape(CardRadius),
+        colors = CardDefaults.cardColors(containerColor = SoftMint),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
 
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(22.dp)
         ) {
 
             Text(
-                "Elderly User",
-                fontSize = 20.sp,
+                "Your loved one",
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = DarkText
             )
@@ -1627,31 +1840,40 @@ private fun CaregiverHomeTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                "Manage the user's profile, memories, routine and preferences.",
-                fontSize = 15.sp,
-                color = SecondaryText
+                "Review their profile, memories, routine, and preferences in one place.",
+                fontSize = 16.sp,
+                color = SecondaryText,
+                lineHeight = 24.sp
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
                     onSectionSelected("profile")
                 },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(TouchMinHeight),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DeepTeal
-                )
+                ),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Text("View Profile")
+                Text(
+                    "View Profile",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
 
-    Spacer(modifier = Modifier.height(26.dp))
+    Spacer(modifier = Modifier.height(28.dp))
 
     Text(
         "Quick Actions",
-        fontSize = 20.sp,
+        fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
@@ -1674,11 +1896,11 @@ private fun CaregiverHomeTab(
         { onSectionSelected("routine") }
     )
 
-    Spacer(modifier = Modifier.height(26.dp))
+    Spacer(modifier = Modifier.height(28.dp))
 
     Text(
         "Weekly Overview",
-        fontSize = 20.sp,
+        fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
@@ -1690,14 +1912,23 @@ private fun CaregiverHomeTab(
         "Games, activities and routine information."
     )
 
+    Spacer(modifier = Modifier.height(8.dp))
+
     Button(
         onClick = onMonitorSelected,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(TouchMinHeight),
         colors = ButtonDefaults.buttonColors(
             containerColor = DeepTeal
-        )
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Text("View Progress")
+        Text(
+            "View Progress",
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -1791,17 +2022,35 @@ private fun CaregiverMonitorTab(
 
 @Composable
 private fun CaregiverMoreTab(
-    onSectionSelected: (String) -> Unit
+    onSectionSelected: (String) -> Unit,
+    onLogout: () -> Unit
 ) {
 
     Text(
-        "More",
-        fontSize = 28.sp,
+        "Settings",
+        fontSize = 30.sp,
         fontWeight = FontWeight.Bold,
         color = DarkText
     )
 
-    Spacer(modifier = Modifier.height(20.dp))
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Text(
+        "Account and caregiving preferences.",
+        fontSize = 16.sp,
+        color = SecondaryText
+    )
+
+    Spacer(modifier = Modifier.height(22.dp))
+
+    Text(
+        "Care tools",
+        fontSize = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = DarkText
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
 
     DashboardButtonRow(
         "Tasks",
@@ -1809,6 +2058,51 @@ private fun CaregiverMoreTab(
         "Preferences",
         { onSectionSelected("preferences") }
     )
+
+    Spacer(modifier = Modifier.height(28.dp))
+    HorizontalDivider(color = MindBorder)
+    Spacer(modifier = Modifier.height(22.dp))
+
+    Text(
+        "Account",
+        fontSize = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = DarkText
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Text(
+        "Sign out when you are finished. Your loved one’s data stays safe.",
+        fontSize = 15.sp,
+        color = SecondaryText,
+        lineHeight = 22.sp
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    OutlinedButton(
+        onClick = {
+            AuthRepository.logout()
+            onLogout()
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(TouchMinHeight),
+        shape = RoundedCornerShape(16.dp),
+        border = ButtonDefaults.outlinedButtonBorder.copy(
+            width = 2.dp
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = DeepTeal
+        )
+    ) {
+        Text(
+            "Log out",
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 
@@ -2063,6 +2357,99 @@ private fun ProgressCard(
                 fontSize = 14.sp,
                 color = SecondaryText
             )
+        }
+    }
+}
+
+
+@Composable
+private fun StatusBanner(
+    text: String,
+    isError: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isError) MindErrorBg else MindSuccessBg
+        )
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(16.dp),
+            fontSize = 15.sp,
+            color = if (isError) MindErrorText else MindSuccessText,
+            lineHeight = 22.sp
+        )
+    }
+}
+
+
+@Composable
+private fun EmptyStateCard(
+    title: String,
+    body: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(CardRadius),
+        colors = CardDefaults.cardColors(containerColor = LightCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DarkText)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(body, fontSize = 15.sp, color = SecondaryText, lineHeight = 22.sp)
+        }
+    }
+}
+
+
+@Composable
+private fun CaregiverMemoryCard(memory: MemoryData) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        shape = RoundedCornerShape(CardRadius),
+        colors = CardDefaults.cardColors(containerColor = LightCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            val imageUrl = memory.photo_url
+            if (!imageUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = memory.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Column(modifier = Modifier.padding(18.dp)) {
+                Text(
+                    memory.title ?: "Untitled Memory",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DarkText
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    memory.description ?: "No description",
+                    fontSize = 15.sp,
+                    color = SecondaryText,
+                    lineHeight = 22.sp
+                )
+                if (!memory.people.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "People: ${memory.people.joinToString(", ")}",
+                        fontSize = 14.sp,
+                        color = SecondaryText
+                    )
+                }
+            }
         }
     }
 }
